@@ -60,6 +60,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import dev.adamsjack.beanshelf.data.Affiliate
+import dev.adamsjack.beanshelf.data.BagCropper
 import dev.adamsjack.beanshelf.data.PhotoStore
 import dev.adamsjack.beanshelf.model.BREW_METHODS
 import dev.adamsjack.beanshelf.model.Bean
@@ -143,8 +144,11 @@ private fun Hero(bean: Bean, onBack: () -> Unit, onEdit: () -> Unit, onDelete: (
             Image(
                 bitmap = p,
                 contentDescription = bean.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                // Cutout: show the whole silhouette on the roastery dark; photo: fill.
+                contentScale = if (BagCropper.isCutout(bean.photoPath)) ContentScale.Fit else ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(if (BagCropper.isCutout(bean.photoPath)) 20.dp else 0.dp),
             )
         } else {
             Box(Modifier.fillMaxSize().background(SurfaceHigh), contentAlignment = Alignment.Center) {

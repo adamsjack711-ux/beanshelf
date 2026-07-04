@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.Button
@@ -62,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import dev.adamsjack.beanshelf.data.BagCropper
 import dev.adamsjack.beanshelf.data.LabelScanner
+import androidx.compose.foundation.layout.padding
 import dev.adamsjack.beanshelf.data.PhotoStore
 import dev.adamsjack.beanshelf.model.Bean
 import dev.adamsjack.beanshelf.model.PROCESSES
@@ -91,14 +93,16 @@ fun AddEditScreen(
 
     var scanning by remember { mutableStateOf(false) }
     var scannedFields by remember { mutableStateOf<List<String>>(emptyList()) }
+    // Manual crop target: path being cropped + whether it's the back photo.
+    var cropTarget by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
 
     // Crop to the bag, show it, then OCR the label and fill ONLY blank fields.
     // Works for both sides: the back merges into whatever is still blank.
     suspend fun scanLabel(path: String, isBack: Boolean = false) {
         scanning = true
-        BagCropper.cropToSubject(context, path)
-        if (isBack) backPhotoPath = path else photoPath = path
-        val info = LabelScanner.scan(context, path)
+        val cutPath = BagCropper.cutOutBag(context, path)
+        if (isBack) backPhotoPath = cutPath else photoPath = cutPath
+        val info = LabelScanner.scan(context, cutPath)
         scanning = false
         if (info == null) {
             scannedFields = emptyList()
@@ -170,6 +174,7 @@ fun AddEditScreen(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 },
+                onCrop = { photoPath?.let { cropTarget = it to false } },
             )
 
             if (photoPath != null) {
@@ -182,7 +187,17 @@ fun AddEditScreen(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
                     },
+                    onCrop = { backPhotoPath?.let { cropTarget = it to true } },
                 )
+            }
+
+            cropTarget?.let { (path, isBack) ->
+                CropDialog(path = path) { newPath ->
+                    cropTarget = null
+                    if (newPath != null) {
+                        if (isBack) backPhotoPath = newPath else photoPath = newPath
+                    }
+                }
             }
 
             if (scanning) {
@@ -280,7 +295,12 @@ fun AddEditScreen(
 }
 
 @Composable
-private fun PhotoPicker(photoPath: String?, onCamera: () -> Unit, onGallery: () -> Unit) {
+private fun PhotoPicker(
+    photoPath: String?,
+    onCamera: () -> Unit,
+    onGallery: () -> Unit,
+    onCrop: () -> Unit,
+) {
     val photo by PhotoStore.rememberPhoto(photoPath, targetWidth = 900)
     Column {
         Box(
@@ -309,8 +329,9 @@ private fun PhotoPicker(photoPath: String?, onCamera: () -> Unit, onGallery: () 
                 Image(
                     bitmap = p,
                     contentDescription = "Bag photo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
+                    // Cutouts have transparent surroundings — never zoom-crop them.
+                    contentScale = if (BagCropper.isCutout(photoPath)) ContentScale.Fit else ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().padding(if (BagCropper.isCutout(photoPath)) 12.dp else 0.dp),
                 )
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -344,13 +365,24 @@ private fun PhotoPicker(photoPath: String?, onCamera: () -> Unit, onGallery: () 
                 Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Crema, modifier = Modifier.size(16.dp))
                 Text("Gallery", color = Crema, modifier = Modifier.padding(start = 6.dp))
             }
+            if (photoPath != null) {
+                TextButton(onClick = onCrop) {
+                    Icon(Icons.Default.Crop, contentDescription = null, tint = Crema, modifier = Modifier.size(16.dp))
+                    Text("Crop", color = Crema, modifier = Modifier.padding(start = 6.dp))
+                }
+            }
         }
     }
 }
 
 /** Optional back-of-bag capture: small thumbnail + actions; scanned for extra info. */
 @Composable
-private fun BackPhotoStrip(backPhotoPath: String?, onCamera: () -> Unit, onGallery: () -> Unit) {
+private fun BackPhotoStrip(
+    backPhotoPath: String?,
+    onCamera: () -> Unit,
+    onGallery: () -> Unit,
+    onCrop: () -> Unit,
+) {
     val photo by PhotoStore.rememberPhoto(backPhotoPath, targetWidth = 300)
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -381,7 +413,7 @@ private fun BackPhotoStrip(backPhotoPath: String?, onCamera: () -> Unit, onGalle
                 Image(
                     bitmap = p,
                     contentDescription = "Back of bag",
-                    contentScale = ContentScale.Crop,
+                    contentScale = if (BagCropper.isCutout(backPhotoPath)) ContentScale.Fit else ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -406,6 +438,11 @@ private fun BackPhotoStrip(backPhotoPath: String?, onCamera: () -> Unit, onGalle
                 }
                 TextButton(onClick = onGallery, contentPadding = PaddingValues(0.dp), modifier = Modifier.padding(start = 16.dp)) {
                     Text("Gallery", color = Crema)
+                }
+                if (backPhotoPath != null) {
+                    TextButton(onClick = onCrop, contentPadding = PaddingValues(0.dp), modifier = Modifier.padding(start = 16.dp)) {
+                        Text("Crop", color = Crema)
+                    }
                 }
             }
         }

@@ -54,6 +54,7 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.objectdetection)
+    implementation(libs.mlkit.subjectsegmentation)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)

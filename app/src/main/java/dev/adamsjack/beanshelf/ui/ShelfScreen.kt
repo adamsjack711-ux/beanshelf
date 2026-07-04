@@ -33,12 +33,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.adamsjack.beanshelf.data.BagCropper
 import dev.adamsjack.beanshelf.data.PhotoStore
 import dev.adamsjack.beanshelf.model.Bean
 import dev.adamsjack.beanshelf.model.formatRating
@@ -121,6 +126,7 @@ private fun BagCard(bean: Bean, modifier: Modifier = Modifier, onClick: () -> Un
     // Seeded tilt per bag so the shelf reads as physical objects, not a grid.
     val tilt = remember(bean.id) { ((bean.id.hashCode() % 100) / 100f) * 3f - 1.5f }
     val photo by PhotoStore.rememberPhoto(bean.photoPath, targetWidth = 400)
+    val cutout = BagCropper.isCutout(bean.photoPath)
     Box(
         modifier = modifier
             .aspectRatio(0.76f)
@@ -128,9 +134,27 @@ private fun BagCard(bean: Bean, modifier: Modifier = Modifier, onClick: () -> Un
                 rotationZ = tilt
                 transformOrigin = TransformOrigin(0.5f, 1f)
             }
-            .shadow(10.dp, RoundedCornerShape(7.dp), clip = false)
-            .clip(RoundedCornerShape(7.dp))
-            .background(SurfaceHigh)
+            .then(
+                // Cutout bags are free-standing silhouettes: no card chrome,
+                // just a soft ground shadow where they meet the plank.
+                if (cutout) Modifier.drawBehind {
+                    val ow = size.width * 0.78f
+                    val oh = 16.dp.toPx()
+                    drawOval(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color.Black.copy(alpha = 0.5f), Color.Transparent),
+                            center = Offset(size.width / 2f, size.height - oh / 2f),
+                            radius = ow / 2f,
+                        ),
+                        topLeft = Offset((size.width - ow) / 2f, size.height - oh),
+                        size = androidx.compose.ui.geometry.Size(ow, oh),
+                    )
+                }
+                else Modifier
+                    .shadow(10.dp, RoundedCornerShape(7.dp), clip = false)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(SurfaceHigh)
+            )
             .clickable(onClick = onClick),
     ) {
         val p = photo
@@ -138,8 +162,9 @@ private fun BagCard(bean: Bean, modifier: Modifier = Modifier, onClick: () -> Un
             Image(
                 bitmap = p,
                 contentDescription = bean.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                contentScale = if (cutout) ContentScale.Fit else ContentScale.Crop,
+                alignment = Alignment.BottomCenter,
+                modifier = Modifier.fillMaxSize().padding(bottom = if (cutout) 2.dp else 0.dp),
             )
         } else {
             Column(

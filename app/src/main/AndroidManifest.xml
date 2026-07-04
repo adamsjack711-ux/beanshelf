@@ -18,6 +18,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Ask Play Services to fetch the subject-segmentation model at install time. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="subject_segment" />
+
         <!-- Hands the camera app a writable URI for bag captures (cacheDir/camera/). -->
         <provider
             android:name="androidx.core.content.FileProvider"
