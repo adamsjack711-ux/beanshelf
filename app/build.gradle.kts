@@ -55,6 +55,7 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.objectdetection)
     implementation(libs.mlkit.subjectsegmentation)
+    implementation(libs.play.services.base)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)

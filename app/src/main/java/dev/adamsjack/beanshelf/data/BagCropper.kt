@@ -45,10 +45,12 @@ object BagCropper {
                         trimmed.compress(Bitmap.CompressFormat.PNG, 100, it)
                     }
                     if (pngFile.absolutePath != path) File(path).delete()
+                    android.util.Log.d("BagCropper", "cutout saved ${trimmed.width}x${trimmed.height}")
                     return@withContext pngFile.absolutePath
                 }
             }
         }
+        android.util.Log.d("BagCropper", "segmentation unavailable/implausible — rectangular fallback")
         rectangleCrop(bmp, path)
         path
     }

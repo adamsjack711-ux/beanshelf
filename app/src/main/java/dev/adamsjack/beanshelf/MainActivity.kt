@@ -33,6 +33,28 @@ class MainActivity : ComponentActivity() {
                 App(vm)
             }
         }
+        requestSegmentationModel()
+    }
+
+    /** Kick off the subject-segmentation model download so the first scan can cut out the bag. */
+    private fun requestSegmentationModel() {
+        runCatching {
+            val segmenter = com.google.mlkit.vision.segmentation.subject.SubjectSegmentation.getClient(
+                com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions.Builder()
+                    .enableForegroundBitmap()
+                    .build()
+            )
+            com.google.android.gms.common.moduleinstall.ModuleInstall.getClient(this)
+                .installModules(
+                    com.google.android.gms.common.moduleinstall.ModuleInstallRequest.newBuilder()
+                        .addApi(segmenter)
+                        .build()
+                )
+                .addOnSuccessListener {
+                    android.util.Log.d("BagCropper", "segmentation module: ${if (it.areModulesAlreadyInstalled()) "already installed" else "install requested"}")
+                }
+                .addOnFailureListener { android.util.Log.d("BagCropper", "module install failed: $it") }
+        }
     }
 }
 

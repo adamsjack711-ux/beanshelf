@@ -14,6 +14,7 @@ mlkitObjectDetection = "17.0.2"
 # Unbundled (Play Services) — model downloads once on demand; we fall back to
 # rectangular crop until it's available.
 mlkitSubjectSegmentation = "16.0.0-beta1"
+playServicesBase = "18.5.0"
 # material-icons artifacts are frozen at 1.7.8 upstream; pinned explicitly in case
 # the BOM stops mapping them.
 materialIcons = "1.7.8"
@@ -30,6 +31,8 @@ mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition"
 # NOTE: alias must avoid a segment named "object" — Kotlin keyword breaks the accessor.
 mlkit-objectdetection = { group = "com.google.mlkit", name = "object-detection", version.ref = "mlkitObjectDetection" }
 mlkit-subjectsegmentation = { group = "com.google.android.gms", name = "play-services-mlkit-subject-segmentation", version.ref = "mlkitSubjectSegmentation" }
+# ModuleInstall API — eagerly fetch the segmentation model at app start.
+play-services-base = { group = "com.google.android.gms", name = "play-services-base", version.ref = "playServicesBase" }
 # BOM: wrap in platform(...) in build.gradle.kts; the artifacts below stay version-less.
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
