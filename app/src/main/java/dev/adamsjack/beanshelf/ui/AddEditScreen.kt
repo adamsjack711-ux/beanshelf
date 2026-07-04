@@ -29,7 +29,10 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -45,6 +48,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -99,8 +103,26 @@ fun AddEditScreen(
     // Manual crop target: path being cropped + whether it's the back photo.
     var cropTarget by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
 
-    // Crop to the bag, show it, then OCR the label and fill ONLY blank fields.
-    // Works for both sides: the back merges into whatever is still blank.
+    // Uncertain scan results wait here for the user's confirmation sheet.
+    var unsureProposals by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+
+    // Applies one scanned value to its field ONLY if the user left it blank.
+    fun applyField(key: String, value: String): Boolean = when (key) {
+        "name" -> name.isBlank().also { if (it) name = value }
+        "roaster" -> roaster.isBlank().also { if (it) roaster = value }
+        "origin" -> origin.isBlank().also { if (it) origin = value }
+        "roast" -> roastLevel.isBlank().also { if (it) roastLevel = value }
+        "process" -> process.isBlank().also { if (it) process = value }
+        "notes" -> notes.isBlank().also { if (it) notes = value }
+        "variety" -> variety.isBlank().also { if (it) variety = value }
+        "elevation" -> elevation.isBlank().also { if (it) elevation = value }
+        "producer" -> producer.isBlank().also { if (it) producer = value }
+        else -> false
+    }
+
+    // Crop to the bag, show it, then OCR the label. Confident fields (keyword-
+    // derived) fill blanks silently; guesses go to a confirmation sheet instead
+    // of being written — the user removes mistakes before they land.
     suspend fun scanLabel(path: String, isBack: Boolean = false) {
         scanning = true
         val cutPath = BagCropper.cutOutBag(context, path)
@@ -112,16 +134,20 @@ fun AddEditScreen(
             return
         }
         val filled = mutableListOf<String>()
-        info.name?.takeIf { name.isBlank() }?.let { name = it; filled += "name" }
-        info.roaster?.takeIf { roaster.isBlank() }?.let { roaster = it; filled += "roaster" }
-        info.origin?.takeIf { origin.isBlank() }?.let { origin = it; filled += "origin" }
-        info.roastLevel?.takeIf { roastLevel.isBlank() }?.let { roastLevel = it; filled += "roast" }
-        info.process?.takeIf { process.isBlank() }?.let { process = it; filled += "process" }
-        info.notes?.takeIf { notes.isBlank() }?.let { notes = it; filled += "notes" }
-        info.variety?.takeIf { variety.isBlank() }?.let { variety = it; filled += "variety" }
-        info.elevation?.takeIf { elevation.isBlank() }?.let { elevation = it; filled += "elevation" }
-        info.producer?.takeIf { producer.isBlank() }?.let { producer = it; filled += "producer" }
+        val ask = mutableListOf<Pair<String, String>>()
+        listOf(
+            "name" to info.name, "roaster" to info.roaster, "origin" to info.origin,
+            "roast" to info.roastLevel, "process" to info.process, "notes" to info.notes,
+            "variety" to info.variety, "elevation" to info.elevation, "producer" to info.producer,
+        ).forEach { (key, value) ->
+            if (value == null) return@forEach
+            when {
+                key in info.unsure -> ask += key to value
+                applyField(key, value) -> filled += key
+            }
+        }
         scannedFields = filled
+        unsureProposals = ask
     }
 
     val captureFile = remember { PhotoStore.cameraCaptureFile(context) }
@@ -204,6 +230,18 @@ fun AddEditScreen(
                         if (isBack) backPhotoPath = newPath else photoPath = newPath
                     }
                 }
+            }
+
+            if (unsureProposals.isNotEmpty()) {
+                ScanReviewSheet(
+                    proposals = unsureProposals,
+                    onDismiss = { unsureProposals = emptyList() },
+                    onApply = { accepted ->
+                        val applied = accepted.filter { (k, v) -> applyField(k, v) }.map { it.first }
+                        scannedFields = scannedFields + applied
+                        unsureProposals = emptyList()
+                    },
+                )
             }
 
             if (scanning) {
@@ -384,6 +422,69 @@ private fun PhotoPicker(
                     Icon(Icons.Default.Crop, contentDescription = null, tint = Crema, modifier = Modifier.size(16.dp))
                     Text("Crop", color = Crema, modifier = Modifier.padding(start = 6.dp))
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Confirmation sheet for scan results the parser wasn't sure about. Nothing in
+ * this list has touched the form yet — the user unchecks mistakes, then applies.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ScanReviewSheet(
+    proposals: List<Pair<String, String>>,
+    onDismiss: () -> Unit,
+    onApply: (List<Pair<String, String>>) -> Unit,
+) {
+    val labels = mapOf(
+        "name" to "Bean name", "roaster" to "Roaster", "origin" to "Origin",
+        "roast" to "Roast level", "process" to "Process", "notes" to "Tasting notes",
+        "variety" to "Variety", "elevation" to "Elevation", "producer" to "Producer",
+    )
+    val checked = remember(proposals) {
+        mutableStateMapOf<String, Boolean>().apply { proposals.forEach { put(it.first, true) } }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Surface2) {
+        Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 36.dp)) {
+            Text("Check what I read", style = MaterialTheme.typography.titleLarge, color = Parchment)
+            Text(
+                "I'm not certain about these. Uncheck anything that's wrong, or fix it in the form after.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Dim,
+                modifier = Modifier.padding(top = 6.dp, bottom = 10.dp),
+            )
+            proposals.forEach { (key, value) ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { checked[key] = !(checked[key] ?: true) }
+                        .padding(vertical = 6.dp),
+                ) {
+                    Checkbox(
+                        checked = checked[key] ?: true,
+                        onCheckedChange = { checked[key] = it },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = Crema,
+                            checkmarkColor = Roast,
+                            uncheckedColor = Dim,
+                        ),
+                    )
+                    Column(Modifier.padding(start = 8.dp)) {
+                        Eyebrow(labels[key] ?: key)
+                        Text(value, style = MaterialTheme.typography.bodyLarge, color = Parchment)
+                    }
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onDismiss) { Text("Skip all", color = Dim) }
+                Spacer(Modifier.weight(1f))
+                Button(
+                    onClick = { onApply(proposals.filter { checked[it.first] == true }) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Crema, contentColor = Roast),
+                ) { Text("Use checked") }
             }
         }
     }

@@ -34,6 +34,8 @@ object LabelScanner {
         val variety: String? = null,
         val elevation: String? = null,
         val producer: String? = null,
+        /** Field keys the parser guessed at rather than derived from a keyword — the UI asks the user to confirm these. */
+        val unsure: Set<String> = emptySet(),
     ) {
         fun isEmpty() = listOf(
             roaster, name, origin, process, roastLevel, notes, variety, elevation, producer,
@@ -185,46 +187,88 @@ object LabelScanner {
                     consumed += idx
                 }
             }
-            if ("notes" !in fields && lower.count { it == ',' } >= 2 && line.text.length <= 48 &&
-                !line.text.any { it.isDigit() }
-            ) {
-                fields["notes"] = line.text.trimEnd('.', ',')
-                consumed += idx
+            if ("notes" !in fields && line.text.length <= 60 && !line.text.any { it.isDigit() }) {
+                // Flavor-wheel detection: 2+ known descriptors, or 1 + list punctuation.
+                val flavorScore = FlavorWheel.score(line.text)
+                if (flavorScore >= 2 || (flavorScore >= 1 && lower.count { it == ',' } >= 2)) {
+                    var note = line.text
+                    consumed += idx
+                    // Notes often wrap: absorb following lines that are also flavor-heavy.
+                    var j = idx + 1
+                    while (j < lines.size && j !in consumed &&
+                        lines[j].text.length <= 60 && FlavorWheel.score(lines[j].text) >= 1 &&
+                        !KEYVAL_REGEX.containsMatchIn(lines[j].text)
+                    ) {
+                        note += ", " + lines[j].text.trim().trimStart('&', '+').trim()
+                        consumed += j
+                        j++
+                    }
+                    fields["notes"] = note
+                }
+            }
+        }
+
+        // No explicit notes line → synthesize from flavor terms scattered on the label.
+        var notesSynthesized = false
+        if ("notes" !in fields) {
+            val terms = lines.flatMap { FlavorWheel.termsIn(it.text) }.distinct()
+            if (terms.size >= 2) {
+                fields["notes"] = terms.joinToString(", ")
+                notesSynthesized = true
             }
         }
 
         // Pass 3 — name & roaster from what's left. Junk guards: no key-value colons,
-        // no digits, real words (3+ letters), confident OCR (garbled logos read low).
+        // no digits, real words (3+ letters), confident OCR (garbled logos read low),
+        // and flavor-heavy lines (those are tasting notes, not names).
         val candidates = lines
             .filterIndexed { idx, l ->
+                val flavor = FlavorWheel.score(l.text)
                 idx !in consumed &&
                     !l.text.contains(':') &&
                     !l.text.any { it.isDigit() } &&
                     l.text.count { it.isLetter() } >= 3 &&
                     l.text.length <= 40 &&
                     l.confidence >= 0.6f &&
+                    flavor < 2 &&
+                    !(flavor >= 1 && l.text.trimEnd().endsWith(",")) &&
                     l.text.lowercase().replace(Regex("[\\s.]+"), "") !in STOPWORDS
             }
             .sortedByDescending { it.height }
 
-        val producer = fields["producer"]
+        var producer = fields["producer"]
         val name = candidates.firstOrNull { it.text.contains(' ') }?.text
             ?: candidates.firstOrNull()?.text
             ?: producer
         val roaster = candidates.map { it.text }.firstOrNull { it != name && it.split(" ").size <= 2 }
 
+        // Cross-field sanity: a "producer" that echoes the origin is a mis-keyed region.
+        val originVal = fields["origin"]
+        if (producer != null && originVal != null) {
+            val pWords = producer.lowercase().split(Regex("[,\\s]+")).filter { it.length > 2 }.toSet()
+            val oWords = originVal.lowercase().split(Regex("[,\\s]+")).filter { it.length > 2 }.toSet()
+            if (pWords.isNotEmpty() && (pWords intersect oWords).size * 2 >= pWords.size) producer = null
+        }
+
+        val unsure = buildSet {
+            if (name != null) add("name")
+            if (roaster != null) add("roaster")
+            if (notesSynthesized) add("notes")
+        }
+
         val info = LabelInfo(
             roaster = roaster?.let(::tidy),
             name = name?.let(::tidy),
-            origin = fields["origin"]?.let(::tidy),
+            origin = originVal?.let(::tidy),
             process = fields["process"]?.let { v ->
                 PROCESS_WORDS.entries.firstOrNull { v.lowercase().contains(it.key) }?.value ?: tidy(v.split(" ").first())
             },
             roastLevel = fields["roast"]?.let(::roastFrom),
-            notes = fields["notes"]?.let { tidy(it.trimEnd('.')) },
+            notes = fields["notes"]?.let { tidy(it.trimEnd('.', ',')) },
             variety = fields["variety"]?.let(::tidy),
             elevation = fields["elevation"],
             producer = producer?.let(::tidy),
+            unsure = unsure,
         )
         Log.d(TAG, "parsed: $info")
         return info
