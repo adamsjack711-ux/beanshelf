@@ -12,14 +12,13 @@ import kotlin.coroutines.resume
 
 /**
  * On-device OCR over a bag photo (ML Kit, bundled model — fully offline), parsed
- * with coffee-label heuristics into pre-fillable fields. Best-effort by design:
- * results only ever fill fields the user has left blank.
+ * with a coffee-label keyword vocabulary into pre-fillable fields. Best-effort by
+ * design: results only ever fill fields the user has left blank.
  *
- * Tuned against real scans (see logcat tag "LabelScanner"):
- *  - back labels are structured "Key: Value" lines → parsed by key, not swallowed
- *  - altitude/variety/date furniture never becomes a name or roaster
- *  - low-confidence lines (garbled logo OCR) can't become a name or roaster
- *  - letter-spaced label text (W A S H E D) matches keywords via de-spacing
+ * Keyword-driven: KEY_SYNONYMS maps every label spelling ("Region:", "Altitude",
+ * "Finca", "We taste"…) to a field. Handles inline "Key: Value" AND the two-line
+ * layout where the keyword sits alone above its value. Logcat tag "LabelScanner"
+ * shows every line seen + the final parse for tuning.
  */
 object LabelScanner {
 
@@ -32,9 +31,40 @@ object LabelScanner {
         val process: String? = null,
         val roastLevel: String? = null,
         val notes: String? = null,
+        val variety: String? = null,
+        val elevation: String? = null,
+        val producer: String? = null,
     ) {
-        fun isEmpty() = listOf(roaster, name, origin, process, roastLevel, notes).all { it == null }
+        fun isEmpty() = listOf(
+            roaster, name, origin, process, roastLevel, notes, variety, elevation, producer,
+        ).all { it == null }
     }
+
+    // ── Keyword vocabulary ────────────────────────────────────────────────
+    // regex fragment (case-insensitive) → target field. "skip" = consume the
+    // line so its text can never leak into name/roaster, but keep no value.
+    private val KEY_SYNONYMS = listOf(
+        "origin|region|country|grown\\s+in" to "origin",
+        "producer|farmer|farm|finca|estate|cooperative|co-?op|washing\\s+station|station" to "producer",
+        "variet(?:y|al|ies)|cultivar" to "variety",
+        "elevation|altitude|masl|m\\.a\\.s\\.l\\.?" to "elevation",
+        "process(?:ing)?|fermentation" to "process",
+        "(?:tasting|flavou?r|cupping)\\s+notes?|notes?\\s+of|we\\s+taste|tastes?\\s+like|notes?" to "notes",
+        "roast\\s+(?:level|profile)|roasted\\s+for|roast" to "roast",
+        "harvest|crop|lot|batch|importer|net\\s+weight|weight|roasted\\s+(?:on|in)|roast\\s+date|best\\s+(?:by|before)|brew\\s+(?:ratio|guide)|dose|www|instagram" to "skip",
+    )
+
+    private val KEYVAL_REGEX = Regex(
+        "^(" + KEY_SYNONYMS.joinToString("|") { "(?:${it.first})" } + ")\\b\\s*[:\\-–]?\\s*(.*)$",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private fun fieldForKey(key: String): String {
+        val k = key.lowercase().trim()
+        return KEY_SYNONYMS.firstOrNull { Regex("^(?:${it.first})$", RegexOption.IGNORE_CASE).matches(k) }
+            ?.second ?: "skip"
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
     private val COUNTRIES = listOf(
         "Ethiopia", "Kenya", "Colombia", "Brazil", "Guatemala", "Honduras", "El Salvador",
@@ -49,19 +79,14 @@ object LabelScanner {
         "anaerobic" to "Anaerobic", "carbonic" to "Anaerobic",
     )
 
-    // Structured back-label lines: "Origin: Colombia", "Masl: 1700", "Notes: plum, cola"…
-    private val KEYVAL_REGEX = Regex(
-        """^(origin|region|producer|farm|variet(?:y|al|ies)|process|tasting\s+notes?|flavou?r\s+notes?|notes?|elevation|altitude|masl|roast(?:ed)?(?:\s+(?:on|date|level))?|lot|harvest|importer|weight)\s*[:\-–]\s*(.*)$""",
-        RegexOption.IGNORE_CASE,
-    )
-
     private val ROAST_REGEX = Regex("""\b(light|medium[-\s]?dark|medium|dark)\b(\s+roast)?""", RegexOption.IGNORE_CASE)
+    // Standalone altitude line, e.g. "1850 masl" / "1700–1900 m".
+    private val ELEVATION_REGEX = Regex("""^~?\d{3,4}(?:\s?[-–]\s?\d{3,4})?\s?(?:m|masl|m\.a\.s\.l\.?)$""", RegexOption.IGNORE_CASE)
     private val SKIP_REGEX = Regex(
-        """^[\d.,\s]+$|\b\d{3,4}\s?-\s?\d{3,4}\s?m\b|\b\d{3,4}\s?masl\b|^\d+\s?(g|kg|oz|lb)\b|www\.|@|\.com|net\s?wt|roasted\s+on|best\s+b(y|efore)|batch|lot\s?#""",
+        """^[\d.,\s]+$|^\d+\s?(g|kg|oz|lb)\b|www\.|@|\.com|net\s?wt""",
         RegexOption.IGNORE_CASE,
     )
-    // Label furniture, never a name/roaster. Compared against the DE-SPACED lowercase
-    // line so letter-spaced small caps ("F I L T E R") match too.
+    // Label furniture, never a name/roaster. Compared against the DE-SPACED lowercase line.
     private val STOPWORDS = setOf(
         "filter", "espresso", "omni", "coffee", "wholebean", "wholebeans", "ground",
         "singleorigin", "specialtycoffee", "arabica", "beans", "netweight", "decaf",
@@ -93,67 +118,66 @@ object LabelScanner {
 
         lines.forEach { Log.d(TAG, "line h=${it.height} conf=%.2f '${it.text}'".format(it.confidence)) }
 
-        var origin: String? = null
-        var process: String? = null
-        var roast: String? = null
-        var notes: String? = null
-        var producer: String? = null
+        val fields = mutableMapOf<String, String>()
         val consumed = mutableSetOf<Int>()
 
-        // Pass 1 — structured "Key: Value" lines (typical bag backs).
-        lines.forEachIndexed { idx, line ->
-            val m = KEYVAL_REGEX.find(line.text) ?: return@forEachIndexed
-            consumed += idx
-            val key = m.groupValues[1].lowercase().replace(Regex("\\s+"), " ")
-            val value = cleanValue(m.groupValues[2])
-            if (value.isBlank()) return@forEachIndexed
-            when {
-                key.startsWith("origin") || key.startsWith("region") ->
-                    if (origin == null) origin = value
-                key.startsWith("producer") || key.startsWith("farm") ->
-                    if (producer == null) producer = value
-                key.contains("note") || key.contains("flavo") ->
-                    if (notes == null) notes = value.trimEnd('.')
-                key.startsWith("process") ->
-                    if (process == null) process = PROCESS_WORDS.entries
-                        .firstOrNull { value.lowercase().contains(it.key) }?.value ?: tidy(value.split(" ").first())
-                key.startsWith("roast") ->
-                    if (roast == null) roast = roastFrom(value)
-                // variety / elevation / masl / lot / harvest / importer / weight: consumed, unused
-            }
+        fun putField(field: String, rawValue: String) {
+            if (field == "skip") return
+            val value = cleanValue(rawValue)
+            if (value.isNotBlank() && field !in fields) fields[field] = value
         }
 
-        // Pass 2 — free-form keyword sweep over unconsumed lines.
+        // Pass 1 — keyword lines: inline "Key: Value" or keyword-only + next-line value.
+        lines.forEachIndexed { idx, line ->
+            if (idx in consumed) return@forEachIndexed
+            val m = KEYVAL_REGEX.find(line.text) ?: return@forEachIndexed
+            val field = fieldForKey(m.groupValues[1])
+            var value = m.groupValues[2].trim()
+            consumed += idx
+            if (value.isBlank()) {
+                // "REGION" alone → value lives on the next line (unless that's a keyword too).
+                val next = lines.getOrNull(idx + 1)
+                if (next != null && idx + 1 !in consumed && !KEYVAL_REGEX.containsMatchIn(next.text)) {
+                    value = next.text.trim()
+                    consumed += idx + 1
+                }
+            }
+            putField(field, value)
+        }
+
+        // Pass 2 — free-form sweep over unconsumed lines.
         lines.forEachIndexed { idx, line ->
             if (idx in consumed) return@forEachIndexed
             val lower = line.text.lowercase()
             val squished = lower.replace(Regex("[\\s.]+"), "")
 
-            if (process == null) {
-                PROCESS_WORDS.entries.firstOrNull { squished.contains(it.key) }?.let {
-                    process = it.value
+            if ("process" !in fields) {
+                PROCESS_WORDS.keys.firstOrNull { squished.contains(it) }?.let {
+                    fields["process"] = it
                     consumed += idx
                 }
             }
-            if (roast == null) {
-                roastFrom(line.text)?.let { r ->
-                    // Only trust bare roast words when "roast" appears nearby.
+            if ("elevation" !in fields && ELEVATION_REGEX.matches(line.text)) {
+                fields["elevation"] = line.text
+                consumed += idx
+            }
+            if ("roast" !in fields) {
+                ROAST_REGEX.find(lower)?.let { m ->
                     if (lower.contains("roast") || squished in setOf("light", "medium", "mediumdark", "dark")) {
-                        roast = r
+                        fields["roast"] = m.groupValues[1]
                         consumed += idx
                     }
                 }
             }
-            if (origin == null) {
+            if ("origin" !in fields) {
                 COUNTRIES.firstOrNull { c -> lower.contains(c.lowercase()) }?.let { country ->
                     val prev = lines.getOrNull(idx - 1)
-                    origin = if (line.text.trim().equals(country, ignoreCase = true) &&
+                    fields["origin"] = if (line.text.trim().equals(country, ignoreCase = true) &&
                         prev != null && prev.text.endsWith(",") && idx - 1 !in consumed
                     ) {
                         consumed += idx - 1
                         "${prev.text.trimEnd(',').trim()}, $country"
                     } else {
-                        // Long line → keep only the segment that holds the country.
                         val segment = line.text.split('|', '·', '•', ';')
                             .firstOrNull { it.contains(country, ignoreCase = true) } ?: line.text
                         cleanValue(segment).trimEnd(',')
@@ -161,10 +185,10 @@ object LabelScanner {
                     consumed += idx
                 }
             }
-            if (notes == null && lower.count { it == ',' } >= 2 && line.text.length <= 48 &&
+            if ("notes" !in fields && lower.count { it == ',' } >= 2 && line.text.length <= 48 &&
                 !line.text.any { it.isDigit() }
             ) {
-                notes = tidy(line.text.trimEnd('.', ','))
+                fields["notes"] = line.text.trimEnd('.', ',')
                 consumed += idx
             }
         }
@@ -183,20 +207,26 @@ object LabelScanner {
             }
             .sortedByDescending { it.height }
 
-        val name = candidates.firstOrNull { it.text.contains(' ') }
-            ?: candidates.firstOrNull()
-            ?: producer?.let { Line(it, 0, 1f) }
-        val roaster = candidates.firstOrNull { it != name && it.text.split(" ").size <= 2 }
+        val producer = fields["producer"]
+        val name = candidates.firstOrNull { it.text.contains(' ') }?.text
+            ?: candidates.firstOrNull()?.text
+            ?: producer
+        val roaster = candidates.map { it.text }.firstOrNull { it != name && it.split(" ").size <= 2 }
 
         val info = LabelInfo(
-            roaster = roaster?.text?.let(::tidy),
-            name = name?.text?.let(::tidy),
-            origin = origin,
-            process = process,
-            roastLevel = roast,
-            notes = notes?.let(::tidy),
+            roaster = roaster?.let(::tidy),
+            name = name?.let(::tidy),
+            origin = fields["origin"]?.let(::tidy),
+            process = fields["process"]?.let { v ->
+                PROCESS_WORDS.entries.firstOrNull { v.lowercase().contains(it.key) }?.value ?: tidy(v.split(" ").first())
+            },
+            roastLevel = fields["roast"]?.let(::roastFrom),
+            notes = fields["notes"]?.let { tidy(it.trimEnd('.')) },
+            variety = fields["variety"]?.let(::tidy),
+            elevation = fields["elevation"],
+            producer = producer?.let(::tidy),
         )
-        Log.d(TAG, "parsed: $info (producer=$producer)")
+        Log.d(TAG, "parsed: $info")
         return info
     }
 
@@ -206,7 +236,7 @@ object LabelScanner {
         val cutAt = Regex("""\b(elevation|altitude|masl|producer|variet|process|harvest|lot)\b""", RegexOption.IGNORE_CASE)
             .find(v)?.range?.first
         if (cutAt != null && cutAt > 0) v = v.substring(0, cutAt).trim()
-        return tidy(v.trim().trimEnd(',', '-', '–', ':'))
+        return v.trim().trimEnd(',', '-', '–', ':')
     }
 
     private fun roastFrom(s: String): String? =

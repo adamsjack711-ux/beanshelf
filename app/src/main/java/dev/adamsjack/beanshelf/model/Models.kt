@@ -17,6 +17,9 @@ data class Bean(
     val roastLevel: String, // "" or one of ROAST_LEVELS
     val process: String,    // "" or one of PROCESSES
     val notes: String,
+    val variety: String,    // e.g. "Pacas", "Heirloom"
+    val elevation: String,  // e.g. "1,650 masl"
+    val producer: String,   // farmer / farm / station
     val rating: Float,      // 0f = unrated
     val photoPath: String?, // absolute path inside filesDir/photos (front of bag)
     val backPhotoPath: String?, // optional back-of-bag photo, also scanned for info

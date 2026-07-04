@@ -87,6 +87,9 @@ fun AddEditScreen(
     var roastLevel by rememberSaveable { mutableStateOf(existing?.roastLevel ?: "") }
     var process by rememberSaveable { mutableStateOf(existing?.process ?: "") }
     var notes by rememberSaveable { mutableStateOf(existing?.notes ?: "") }
+    var variety by rememberSaveable { mutableStateOf(existing?.variety ?: "") }
+    var elevation by rememberSaveable { mutableStateOf(existing?.elevation ?: "") }
+    var producer by rememberSaveable { mutableStateOf(existing?.producer ?: "") }
     var rating by rememberSaveable { mutableStateOf(existing?.rating ?: 0f) }
     var photoPath by rememberSaveable { mutableStateOf(existing?.photoPath) }
     var backPhotoPath by rememberSaveable { mutableStateOf(existing?.backPhotoPath) }
@@ -115,6 +118,9 @@ fun AddEditScreen(
         info.roastLevel?.takeIf { roastLevel.isBlank() }?.let { roastLevel = it; filled += "roast" }
         info.process?.takeIf { process.isBlank() }?.let { process = it; filled += "process" }
         info.notes?.takeIf { notes.isBlank() }?.let { notes = it; filled += "notes" }
+        info.variety?.takeIf { variety.isBlank() }?.let { variety = it; filled += "variety" }
+        info.elevation?.takeIf { elevation.isBlank() }?.let { elevation = it; filled += "elevation" }
+        info.producer?.takeIf { producer.isBlank() }?.let { producer = it; filled += "producer" }
         scannedFields = filled
     }
 
@@ -228,6 +234,11 @@ fun AddEditScreen(
             LabeledField(roaster, { roaster = it }, "Roaster")
             LabeledField(origin, { origin = it }, "Origin — country or farm")
 
+            Eyebrow("Details", Modifier.padding(top = 22.dp, bottom = 10.dp))
+            LabeledField(producer, { producer = it }, "Producer — farmer or farm")
+            LabeledField(variety, { variety = it }, "Variety — e.g. Pacas, Bourbon")
+            LabeledField(elevation, { elevation = it }, "Elevation — e.g. 1,650 masl")
+
             Eyebrow("Roast", Modifier.padding(top = 22.dp, bottom = 6.dp))
             ChoiceChips(ROAST_LEVELS, roastLevel) { roastLevel = if (roastLevel == it) "" else it }
 
@@ -268,6 +279,9 @@ fun AddEditScreen(
                             roastLevel = roastLevel,
                             process = process,
                             notes = notes.trim(),
+                            variety = variety.trim(),
+                            elevation = elevation.trim(),
+                            producer = producer.trim(),
                             rating = rating,
                             photoPath = photoPath,
                             backPhotoPath = backPhotoPath,

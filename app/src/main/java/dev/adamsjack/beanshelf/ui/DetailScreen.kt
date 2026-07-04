@@ -207,13 +207,22 @@ private fun TitleBlock(bean: Bean) {
 
 @Composable
 private fun MetaRow(bean: Bean) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
-    ) {
-        MetaCell("Origin", bean.origin)
-        MetaCell("Roast", bean.roastLevel)
-        MetaCell("Process", bean.process)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            MetaCell("Origin", bean.origin)
+            MetaCell("Roast", bean.roastLevel)
+            MetaCell("Process", bean.process)
+        }
+        if (listOf(bean.producer, bean.variety, bean.elevation).any { it.isNotBlank() }) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                modifier = Modifier.padding(top = 16.dp),
+            ) {
+                MetaCell("Producer", bean.producer)
+                MetaCell("Variety", bean.variety)
+                MetaCell("Elevation", bean.elevation)
+            }
+        }
     }
 }
 
