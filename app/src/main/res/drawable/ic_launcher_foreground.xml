@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A single crema-coloured coffee bean, tilted, with a dark centre crease. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:rotation="-24"
+        android:pivotX="54"
+        android:pivotY="54">
+        <!-- bean body: ellipse rx=20 ry=27 centred at 54,54 -->
+        <path
+            android:fillColor="#D9A468"
+            android:pathData="M54,27 C65,27 74,39 74,54 C74,69 65,81 54,81 C43,81 34,69 34,54 C34,39 43,27 54,27 Z" />
+        <!-- centre crease -->
+        <path
+            android:strokeColor="#17100B"
+            android:strokeWidth="5"
+            android:strokeLineCap="round"
+            android:fillColor="#00000000"
+            android:pathData="M54,31 C60,40 47,49 54,58 C61,67 49,73 54,77" />
+    </group>
+</vector>
