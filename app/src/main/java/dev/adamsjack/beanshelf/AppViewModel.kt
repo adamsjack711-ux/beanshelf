@@ -20,6 +20,7 @@ sealed interface Screen {
     data object Shelf : Screen
     data object Leaderboard : Screen
     data object Social : Screen
+    data object Settings : Screen
     data class Detail(val beanId: String) : Screen
     /** beanId == null → new bag. Back returns to Detail when editing, Shelf when adding. */
     data class Edit(val beanId: String?) : Screen
@@ -98,6 +99,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun goBack() {
+        if (nav == Screen.Social) pendingProfile = null
         nav = when (val s = nav) {
             is Screen.Edit -> if (s.beanId != null) Screen.Detail(s.beanId) else Screen.Shelf
             else -> Screen.Shelf

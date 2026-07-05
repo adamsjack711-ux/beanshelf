@@ -16,6 +16,7 @@ import dev.adamsjack.beanshelf.ui.AddEditScreen
 import dev.adamsjack.beanshelf.ui.BeanshelfTheme
 import dev.adamsjack.beanshelf.ui.DetailScreen
 import dev.adamsjack.beanshelf.ui.LeaderboardScreen
+import dev.adamsjack.beanshelf.ui.SettingsScreen
 import dev.adamsjack.beanshelf.ui.ShelfScreen
 import dev.adamsjack.beanshelf.ui.SocialScreen
 
@@ -25,10 +26,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // App is dark regardless of system theme — force light system-bar icons.
+        // Restore the saved palette before first frame; the theme flips bar icons.
+        dev.adamsjack.beanshelf.ui.setPalette(
+            dev.adamsjack.beanshelf.ui.Palettes.byKey(
+                dev.adamsjack.beanshelf.data.ThemePrefs.loadKey(this)
+            )
+        )
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         setContent {
             BeanshelfTheme {
@@ -88,6 +94,7 @@ private fun App(vm: AppViewModel) {
                 onOpen = { vm.nav = Screen.Detail(it.id) },
                 onLeaderboard = { vm.nav = Screen.Leaderboard },
                 onSocial = { vm.nav = Screen.Social },
+                onSettings = { vm.nav = Screen.Settings },
                 onImport = { vm.importBean(it) },
             )
 
@@ -95,6 +102,8 @@ private fun App(vm: AppViewModel) {
                 onBack = { vm.pendingProfile = null; vm.nav = Screen.Shelf },
                 initialProfile = vm.pendingProfile,
             )
+
+            is Screen.Settings -> SettingsScreen(onBack = { vm.nav = Screen.Shelf })
 
             is Screen.Leaderboard -> LeaderboardScreen(
                 beans = beans,
@@ -112,6 +121,7 @@ private fun App(vm: AppViewModel) {
                         onOpen = { vm.nav = Screen.Detail(it.id) },
                         onLeaderboard = { vm.nav = Screen.Leaderboard },
                         onSocial = { vm.nav = Screen.Social },
+                        onSettings = { vm.nav = Screen.Settings },
                         onImport = { vm.importBean(it) },
                     )
                 } else {
