@@ -163,6 +163,13 @@ object LabelScanner {
                 fields["elevation"] = line.text
                 consumed += idx
             }
+            if ("variety" !in fields) {
+                // A line that is entirely variety terms ("PINK BOURBON", "Caturra & Castillo").
+                Varieties.matchLine(line.text)?.let {
+                    fields["variety"] = it
+                    consumed += idx
+                }
+            }
             if ("roast" !in fields) {
                 ROAST_REGEX.find(lower)?.let { m ->
                     if (lower.contains("roast") || squished in setOf("light", "medium", "mediumdark", "dark")) {
@@ -208,10 +215,15 @@ object LabelScanner {
             }
         }
 
-        // No explicit notes line → synthesize from flavor terms scattered on the label.
+        // No explicit notes line → synthesize from flavor terms scattered on the
+        // label. Only unconsumed lines: a "Pink Bourbon" variety line must not
+        // leak "bourbon" into the notes.
         var notesSynthesized = false
         if ("notes" !in fields) {
-            val terms = lines.flatMap { FlavorWheel.termsIn(it.text) }.distinct()
+            val terms = lines
+                .filterIndexed { idx, _ -> idx !in consumed }
+                .flatMap { FlavorWheel.termsIn(it.text) }
+                .distinct()
             if (terms.size >= 2) {
                 fields["notes"] = terms.joinToString(", ")
                 notesSynthesized = true
