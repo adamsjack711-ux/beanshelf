@@ -103,6 +103,8 @@ fun AddEditScreen(
     var scannedFields by remember { mutableStateOf<List<String>>(emptyList()) }
     // Manual crop target: path being cropped + whether it's the back photo.
     var cropTarget by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
+    // Tapping an existing photo only VIEWS it; the camera stays behind its buttons.
+    var viewerPath by remember { mutableStateOf<String?>(null) }
 
     // Uncertain scan results wait here for the user's confirmation sheet.
     var unsureProposals by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
@@ -211,6 +213,7 @@ fun AddEditScreen(
                     )
                 },
                 onCrop = { photoPath?.let { cropTarget = it to false } },
+                onView = { photoPath?.let { viewerPath = it } },
             )
 
             if (photoPath != null) {
@@ -224,8 +227,11 @@ fun AddEditScreen(
                         )
                     },
                     onCrop = { backPhotoPath?.let { cropTarget = it to true } },
+                    onView = { backPhotoPath?.let { viewerPath = it } },
                 )
             }
+
+            viewerPath?.let { PhotoViewerDialog(path = it) { viewerPath = null } }
 
             cropTarget?.let { (path, isBack) ->
                 CropDialog(path = path) { newPath ->
@@ -356,6 +362,7 @@ private fun PhotoPicker(
     onCamera: () -> Unit,
     onGallery: () -> Unit,
     onCrop: () -> Unit,
+    onView: () -> Unit,
 ) {
     val photo by PhotoStore.rememberPhoto(photoPath, targetWidth = 900)
     Column {
@@ -377,7 +384,8 @@ private fun PhotoPicker(
                         )
                     } else Modifier
                 )
-                .clickable(onClick = onCamera),
+                // Empty slot: tap opens the camera. Existing photo: tap just views it.
+                .clickable(onClick = if (photoPath == null) onCamera else onView),
             contentAlignment = Alignment.Center,
         ) {
             val p = photo
@@ -501,6 +509,7 @@ private fun BackPhotoStrip(
     onCamera: () -> Unit,
     onGallery: () -> Unit,
     onCrop: () -> Unit,
+    onView: () -> Unit,
 ) {
     val photo by PhotoStore.rememberPhoto(backPhotoPath, targetWidth = 300)
     Row(
@@ -524,7 +533,7 @@ private fun BackPhotoStrip(
                         )
                     } else Modifier
                 )
-                .clickable(onClick = onCamera),
+                .clickable(onClick = if (backPhotoPath == null) onCamera else onView),
             contentAlignment = Alignment.Center,
         ) {
             val p = photo

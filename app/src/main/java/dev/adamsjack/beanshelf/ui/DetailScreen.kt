@@ -87,12 +87,13 @@ fun DetailScreen(
 ) {
     var showDelete by remember { mutableStateOf(false) }
     var showBrewSheet by rememberSaveable { mutableStateOf(false) }
+    var viewerPath by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 48.dp),
     ) {
-        item { Hero(bean, onBack, onEdit, { showDelete = true }) }
+        item { Hero(bean, onBack, onEdit, { showDelete = true }, onPhotoTap = { bean.photoPath?.let { viewerPath = it } }) }
         item { TitleBlock(bean) }
         item { MetaRow(bean) }
         item { BuyRow(bean) }
@@ -136,10 +137,12 @@ fun DetailScreen(
             onLog = { showBrewSheet = false; onLogBrew(it) },
         )
     }
+
+    viewerPath?.let { PhotoViewerDialog(path = it) { viewerPath = null } }
 }
 
 @Composable
-private fun Hero(bean: Bean, onBack: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun Hero(bean: Bean, onBack: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onPhotoTap: () -> Unit) {
     val photo by PhotoStore.rememberPhoto(bean.photoPath, targetWidth = 1200)
     Box(Modifier.fillMaxWidth().height(380.dp)) {
         val p = photo
@@ -151,7 +154,8 @@ private fun Hero(bean: Bean, onBack: () -> Unit, onEdit: () -> Unit, onDelete: (
                 contentScale = if (BagCropper.isCutout(bean.photoPath)) ContentScale.Fit else ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(if (BagCropper.isCutout(bean.photoPath)) 20.dp else 0.dp),
+                    .padding(if (BagCropper.isCutout(bean.photoPath)) 20.dp else 0.dp)
+                    .clickable(onClick = onPhotoTap),
             )
         } else {
             Box(Modifier.fillMaxSize().background(SurfaceHigh), contentAlignment = Alignment.Center) {

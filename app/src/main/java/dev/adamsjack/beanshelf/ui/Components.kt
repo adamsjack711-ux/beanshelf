@@ -1,10 +1,20 @@
 package dev.adamsjack.beanshelf.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.runtime.getValue
+import dev.adamsjack.beanshelf.data.PhotoStore
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -23,6 +33,33 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.adamsjack.beanshelf.model.formatRating
+
+/** Full-screen photo viewer — tap anywhere to close. Just looking, no editing. */
+@Composable
+fun PhotoViewerDialog(path: String, onDismiss: () -> Unit) {
+    val photo by PhotoStore.rememberPhoto(path, targetWidth = 1600)
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.95f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            photo?.let {
+                Image(
+                    bitmap = it,
+                    contentDescription = "Bag photo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(12.dp),
+                )
+            }
+        }
+    }
+}
 
 /** Letter-spaced uppercase metadata label — the bag-label vernacular. */
 @Composable
