@@ -34,11 +34,12 @@ object LabelScanner {
         val variety: String? = null,
         val elevation: String? = null,
         val producer: String? = null,
+        val roastedOn: String? = null,
         /** Field keys the parser guessed at rather than derived from a keyword — the UI asks the user to confirm these. */
         val unsure: Set<String> = emptySet(),
     ) {
         fun isEmpty() = listOf(
-            roaster, name, origin, process, roastLevel, notes, variety, elevation, producer,
+            roaster, name, origin, process, roastLevel, notes, variety, elevation, producer, roastedOn,
         ).all { it == null }
     }
 
@@ -52,8 +53,10 @@ object LabelScanner {
         "elevation|altitude|masl|m\\.a\\.s\\.l\\.?" to "elevation",
         "process(?:ing)?|fermentation" to "process",
         "(?:tasting|flavou?r|cupping)\\s+notes?|notes?\\s+of|we\\s+taste|tastes?\\s+like|notes?" to "notes",
+        // roastdate MUST precede the bare "roast" fragment or "Roast Date" mis-keys.
+        "roast\\s+date|roasted\\s+on|roast\\s+day|roasted" to "roastdate",
         "roast\\s+(?:level|profile)|roasted\\s+for|roast" to "roast",
-        "harvest|crop|lot|batch|importer|net\\s+weight|weight|roasted\\s+(?:on|in)|roast\\s+date|best\\s+(?:by|before)|brew\\s+(?:ratio|guide)|dose|www|instagram" to "skip",
+        "harvest|crop|lot|batch|importer|net\\s+weight|weight|best\\s+(?:by|before)|brew\\s+(?:ratio|guide)|dose|www|instagram" to "skip",
     )
 
     private val KEYVAL_REGEX = Regex(
@@ -215,6 +218,13 @@ object LabelScanner {
             }
         }
 
+        // A roast date must actually look like a date ("Roasted in Canada" doesn't).
+        fields["roastdate"]?.let { v ->
+            val dateish = v.contains(Regex("\\d")) ||
+                v.contains(Regex("jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec", RegexOption.IGNORE_CASE))
+            if (!dateish) fields.remove("roastdate")
+        }
+
         // No explicit notes line → synthesize from flavor terms scattered on the
         // label. Only unconsumed lines: a "Pink Bourbon" variety line must not
         // leak "bourbon" into the notes.
@@ -280,6 +290,7 @@ object LabelScanner {
             variety = fields["variety"]?.let(::tidy),
             elevation = fields["elevation"],
             producer = producer?.let(::tidy),
+            roastedOn = fields["roastdate"],
             unsure = unsure,
         )
         Log.d(TAG, "parsed: $info")

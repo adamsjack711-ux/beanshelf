@@ -18,12 +18,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -53,6 +55,7 @@ fun ShelfScreen(
     beans: List<Bean>,
     onAdd: () -> Unit,
     onOpen: (Bean) -> Unit,
+    onLeaderboard: () -> Unit,
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -77,7 +80,7 @@ fun ShelfScreen(
                     bottom = padding.calculateBottomPadding() + 96.dp,
                 ),
             ) {
-                item { ShelfHeader(beans) }
+                item { ShelfHeader(beans, onLeaderboard) }
                 items(rows.size) { i -> ShelfRow(rows[i], onOpen) }
             }
         }
@@ -85,9 +88,19 @@ fun ShelfScreen(
 }
 
 @Composable
-private fun ShelfHeader(beans: List<Bean>) {
-    Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 4.dp)) {
-        Text("Beanshelf", style = MaterialTheme.typography.headlineLarge, color = Parchment)
+private fun ShelfHeader(beans: List<Bean>, onLeaderboard: () -> Unit) {
+    Column(Modifier.padding(start = 24.dp, end = 16.dp, top = 28.dp, bottom = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Beanshelf",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Parchment,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onLeaderboard) {
+                Icon(Icons.Default.EmojiEvents, contentDescription = "Leaderboard", tint = Crema)
+            }
+        }
         val rated = beans.filter { it.rating > 0f }
         val sub = buildString {
             append("${beans.size} ")

@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 /** In-app navigation: three screens, no nav library. */
 sealed interface Screen {
     data object Shelf : Screen
+    data object Leaderboard : Screen
     data class Detail(val beanId: String) : Screen
     /** beanId == null → new bag. Back returns to Detail when editing, Shelf when adding. */
     data class Edit(val beanId: String?) : Screen

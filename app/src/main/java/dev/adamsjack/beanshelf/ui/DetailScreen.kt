@@ -236,6 +236,11 @@ private fun MetaRow(bean: Bean) {
                 MetaCell("Elevation", bean.elevation)
             }
         }
+        if (bean.roastedOn.isNotBlank()) {
+            Row(modifier = Modifier.padding(top = 16.dp)) {
+                MetaCell("Roasted", bean.roastedOn)
+            }
+        }
     }
 }
 

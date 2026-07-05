@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import dev.adamsjack.beanshelf.ui.AddEditScreen
 import dev.adamsjack.beanshelf.ui.BeanshelfTheme
 import dev.adamsjack.beanshelf.ui.DetailScreen
+import dev.adamsjack.beanshelf.ui.LeaderboardScreen
 import dev.adamsjack.beanshelf.ui.ShelfScreen
 
 class MainActivity : ComponentActivity() {
@@ -70,6 +71,13 @@ private fun App(vm: AppViewModel) {
                 beans = beans,
                 onAdd = { vm.nav = Screen.Edit(null) },
                 onOpen = { vm.nav = Screen.Detail(it.id) },
+                onLeaderboard = { vm.nav = Screen.Leaderboard },
+            )
+
+            is Screen.Leaderboard -> LeaderboardScreen(
+                beans = beans,
+                onBack = { vm.nav = Screen.Shelf },
+                onOpen = { vm.nav = Screen.Detail(it.id) },
             )
 
             is Screen.Detail -> {
@@ -80,6 +88,7 @@ private fun App(vm: AppViewModel) {
                         beans = beans,
                         onAdd = { vm.nav = Screen.Edit(null) },
                         onOpen = { vm.nav = Screen.Detail(it.id) },
+                        onLeaderboard = { vm.nav = Screen.Leaderboard },
                     )
                 } else {
                     DetailScreen(

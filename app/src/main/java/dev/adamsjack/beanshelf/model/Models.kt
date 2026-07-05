@@ -38,6 +38,7 @@ data class Bean(
     val variety: String,    // e.g. "Pacas", "Heirloom"
     val elevation: String,  // e.g. "1,650 masl"
     val producer: String,   // farmer / farm / station
+    val roastedOn: String,  // roast date as printed ("May 26", "27-05-2026")
     val rating: Float,      // 0f = unrated
     val photoPath: String?, // absolute path inside filesDir/photos (front of bag)
     val backPhotoPath: String?, // optional back-of-bag photo, also scanned for info

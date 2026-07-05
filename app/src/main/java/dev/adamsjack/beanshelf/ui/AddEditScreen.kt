@@ -95,6 +95,7 @@ fun AddEditScreen(
     var variety by rememberSaveable { mutableStateOf(existing?.variety ?: "") }
     var elevation by rememberSaveable { mutableStateOf(existing?.elevation ?: "") }
     var producer by rememberSaveable { mutableStateOf(existing?.producer ?: "") }
+    var roastedOn by rememberSaveable { mutableStateOf(existing?.roastedOn ?: "") }
     var rating by rememberSaveable { mutableStateOf(existing?.rating ?: 0f) }
     var photoPath by rememberSaveable { mutableStateOf(existing?.photoPath) }
     var backPhotoPath by rememberSaveable { mutableStateOf(existing?.backPhotoPath) }
@@ -120,6 +121,7 @@ fun AddEditScreen(
         "variety" -> variety.isBlank().also { if (it) variety = value }
         "elevation" -> elevation.isBlank().also { if (it) elevation = value }
         "producer" -> producer.isBlank().also { if (it) producer = value }
+        "roasted" -> roastedOn.isBlank().also { if (it) roastedOn = value }
         else -> false
     }
 
@@ -142,6 +144,7 @@ fun AddEditScreen(
             "name" to info.name, "roaster" to info.roaster, "origin" to info.origin,
             "roast" to info.roastLevel, "process" to info.process, "notes" to info.notes,
             "variety" to info.variety, "elevation" to info.elevation, "producer" to info.producer,
+            "roasted" to info.roastedOn,
         ).forEach { (key, value) ->
             if (value == null) return@forEach
             when {
@@ -286,6 +289,7 @@ fun AddEditScreen(
             LabeledField(producer, { producer = it }, "Producer — farmer or farm")
             LabeledField(variety, { variety = it }, "Variety — e.g. Pacas, Bourbon")
             LabeledField(elevation, { elevation = it }, "Elevation — e.g. 1,650 masl")
+            LabeledField(roastedOn, { roastedOn = it }, "Roasted on — e.g. May 26")
 
             Eyebrow("Roast", Modifier.padding(top = 22.dp, bottom = 6.dp))
             ChoiceChips(ROAST_LEVELS, roastLevel) { roastLevel = if (roastLevel == it) "" else it }
@@ -330,6 +334,7 @@ fun AddEditScreen(
                             variety = variety.trim(),
                             elevation = elevation.trim(),
                             producer = producer.trim(),
+                            roastedOn = roastedOn.trim(),
                             rating = rating,
                             photoPath = photoPath,
                             backPhotoPath = backPhotoPath,
@@ -454,6 +459,7 @@ private fun ScanReviewSheet(
         "name" to "Bean name", "roaster" to "Roaster", "origin" to "Origin",
         "roast" to "Roast level", "process" to "Process", "notes" to "Tasting notes",
         "variety" to "Variety", "elevation" to "Elevation", "producer" to "Producer",
+        "roasted" to "Roast date",
     )
     val checked = remember(proposals) {
         mutableStateMapOf<String, Boolean>().apply { proposals.forEach { put(it.first, true) } }

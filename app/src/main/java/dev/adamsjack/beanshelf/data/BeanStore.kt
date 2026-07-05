@@ -41,6 +41,7 @@ class BeanStore(context: Context) {
         put("variety", b.variety)
         put("elevation", b.elevation)
         put("producer", b.producer)
+        put("roastedOn", b.roastedOn)
         put("rating", b.rating.toDouble())
         put("photoPath", b.photoPath ?: JSONObject.NULL)
         put("backPhotoPath", b.backPhotoPath ?: JSONObject.NULL)
@@ -75,6 +76,7 @@ class BeanStore(context: Context) {
             variety = o.optString("variety"),
             elevation = o.optString("elevation"),
             producer = o.optString("producer"),
+            roastedOn = o.optString("roastedOn"),
             rating = o.optDouble("rating", 0.0).toFloat(),
             photoPath = if (o.isNull("photoPath")) null else o.optString("photoPath"),
             backPhotoPath = if (o.isNull("backPhotoPath")) null else o.optString("backPhotoPath"),
