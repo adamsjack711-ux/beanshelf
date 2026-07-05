@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -45,6 +46,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -78,9 +80,9 @@ import kotlinx.coroutines.withContext
 
 private const val DEFAULT_SERVER = "https://beans.beanshelf.ca"
 
-/** In-Social navigation. */
+/** In-Social navigation stack entries. */
 private sealed interface View {
-    data class Home(val tab: Int) : View          // 0 Feed, 1 Discover, 2 Find people
+    data object Home : View
     data class ProfileOf(val username: String) : View
     data class People(val username: String, val followers: Boolean) : View
 }
@@ -107,30 +109,37 @@ fun SocialScreen(onBack: () -> Unit, initialProfile: String? = null, startOnProf
 
 @Composable
 private fun SocialRoot(account: Account, initialProfile: String?, onBack: () -> Unit, onSignOut: () -> Unit) {
-    var view by remember {
-        mutableStateOf<View>(if (initialProfile != null) View.ProfileOf(initialProfile) else View.Home(0))
+    // A simple back-stack; the tab root is the bottom entry (no back arrow there).
+    val stack = remember {
+        mutableStateListOf<View>(if (initialProfile != null) View.ProfileOf(initialProfile) else View.Home)
     }
     var commentsPost by remember { mutableStateOf<FeedPost?>(null) }
-    val openProfile: (String) -> Unit = { view = View.ProfileOf(it) }
+    val atRoot = stack.size <= 1
+    fun push(v: View) { stack.add(v) }
+    fun pop() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
+
+    // Hardware back pops the in-Social stack; at the root it falls through to the app.
+    androidx.activity.compose.BackHandler(enabled = !atRoot) { pop() }
+
+    val openProfile: (String) -> Unit = { push(View.ProfileOf(it)) }
     val openComments: (FeedPost) -> Unit = { commentsPost = it }
 
-    when (val v = view) {
+    when (val v = stack.last()) {
         is View.Home -> HomeTabs(
-            account = account, tab = v.tab,
-            onTab = { view = View.Home(it) },
-            onBack = onBack, onSignOut = onSignOut,
+            account = account, onSignOut = onSignOut,
             onOpenProfile = openProfile, onOpenComments = openComments,
-            onOpenMe = { view = View.ProfileOf(account.username) },
+            onOpenMe = { push(View.ProfileOf(account.username)) },
         )
         is View.ProfileOf -> ProfileView(
             account = account, username = v.username,
-            onBack = { view = View.Home(0) },
+            showBack = !atRoot,
+            onBack = { pop() },
             onOpenProfile = openProfile, onOpenComments = openComments,
-            onOpenPeople = { followers -> view = View.People(v.username, followers) },
+            onOpenPeople = { followers -> push(View.People(v.username, followers)) },
         )
         is View.People -> PeopleList(
             account = account, username = v.username, followers = v.followers,
-            onBack = { view = View.ProfileOf(v.username) },
+            onBack = { pop() },
             onOpenProfile = openProfile,
         )
     }
@@ -142,17 +151,14 @@ private fun SocialRoot(account: Account, initialProfile: String?, onBack: () -> 
 
 @Composable
 private fun HomeTabs(
-    account: Account, tab: Int, onTab: (Int) -> Unit,
-    onBack: () -> Unit, onSignOut: () -> Unit,
+    account: Account, onSignOut: () -> Unit,
     onOpenProfile: (String) -> Unit, onOpenComments: (FeedPost) -> Unit, onOpenMe: () -> Unit,
 ) {
+    var tab by rememberSaveable { mutableStateOf(0) } // 0 Feed, 1 Discover, 2 Find people
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            // header
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp, end = 12.dp, top = 8.dp)) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Parchment)
-                }
+            // header — no back arrow; the bottom bar owns top-level navigation
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 20.dp, end = 12.dp, top = 10.dp)) {
                 Avatar(account.username, size = 34.dp, onClick = onOpenMe)
                 Column(Modifier.weight(1f).padding(start = 10.dp).clickable(onClick = onOpenMe)) {
                     Text(account.display, style = MaterialTheme.typography.titleMedium, color = Parchment)
@@ -162,9 +168,9 @@ private fun HomeTabs(
             }
             // tab strip
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TabChip("Feed", tab == 0) { onTab(0) }
-                TabChip("Discover", tab == 1) { onTab(1) }
-                TabChip("Find people", tab == 2) { onTab(2) }
+                TabChip("Feed", tab == 0) { tab = 0 }
+                TabChip("Discover", tab == 1) { tab = 1 }
+                TabChip("Find people", tab == 2) { tab = 2 }
             }
             when (tab) {
                 2 -> FindPeople(account, onOpenProfile)
@@ -388,7 +394,7 @@ private fun PersonRow(account: Account, hit: UserHit, onOpenProfile: (String) ->
 
 @Composable
 private fun ProfileView(
-    account: Account, username: String, onBack: () -> Unit,
+    account: Account, username: String, showBack: Boolean, onBack: () -> Unit,
     onOpenProfile: (String) -> Unit, onOpenComments: (FeedPost) -> Unit, onOpenPeople: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
@@ -404,8 +410,12 @@ private fun ProfileView(
     val p = profile
     LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding(), contentPadding = PaddingValues(bottom = 48.dp)) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp, top = 10.dp)) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Parchment) }
+            if (showBack) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp, top = 10.dp)) {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Parchment) }
+                }
+            } else {
+                Spacer(Modifier.height(16.dp))
             }
         }
         if (p == null) { item { Loader() }; return@LazyColumn }
