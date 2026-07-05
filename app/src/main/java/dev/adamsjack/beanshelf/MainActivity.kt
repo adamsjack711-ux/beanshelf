@@ -36,6 +36,20 @@ class MainActivity : ComponentActivity() {
             }
         }
         requestSegmentationModel()
+        handleDeepLink(intent)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        handleDeepLink(intent)
+    }
+
+    /** beanshelf://u/<username> → jump to that person's profile in Social. */
+    private fun handleDeepLink(intent: android.content.Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme == "beanshelf" && data.host == "u") {
+            data.lastPathSegment?.takeIf { it.isNotBlank() }?.let { vm.openProfile(it) }
+        }
     }
 
     /** Kick off the subject-segmentation model download so the first scan can cut out the bag. */
@@ -77,7 +91,10 @@ private fun App(vm: AppViewModel) {
                 onImport = { vm.importBean(it) },
             )
 
-            is Screen.Social -> SocialScreen(onBack = { vm.nav = Screen.Shelf })
+            is Screen.Social -> SocialScreen(
+                onBack = { vm.pendingProfile = null; vm.nav = Screen.Shelf },
+                initialProfile = vm.pendingProfile,
+            )
 
             is Screen.Leaderboard -> LeaderboardScreen(
                 beans = beans,

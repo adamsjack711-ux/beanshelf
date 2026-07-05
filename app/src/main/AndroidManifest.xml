@@ -20,6 +20,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Invite deep link: beanshelf://u/<username> opens that person's profile. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="beanshelf" android:host="u" />
+            </intent-filter>
         </activity>
 
         <!-- Ask Play Services to fetch the subject-segmentation model at install time. -->

@@ -34,6 +34,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     var nav by mutableStateOf<Screen>(Screen.Shelf)
 
+    /** Set by a beanshelf://u/<username> deep link; consumed by the Social screen. */
+    var pendingProfile by mutableStateOf<String?>(null)
+
+    fun openProfile(username: String) {
+        pendingProfile = username
+        nav = Screen.Social
+    }
+
     init {
         viewModelScope.launch { _beans.value = store.load() }
     }

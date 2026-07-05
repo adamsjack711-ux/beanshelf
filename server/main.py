@@ -1,28 +1,30 @@
 """
-Beanshelf social server — accounts, follows, bean posts, feed, leaderboards.
+Beanshelf social server — accounts, follows, bean posts, feed, leaderboards,
+cheers + comments, discover, shareable profiles.
 
 FastAPI + SQLite, single file, no external services. Photos live on disk next
-to the DB. Designed to run anywhere; today it runs on Jack's Mac and phones
-reach it over Tailscale/LAN.
+to the DB. Runs behind a Cloudflare tunnel at https://beans.beanshelf.ca.
 
 Run:  python3 -m uvicorn main:app --host 0.0.0.0 --port 8787
 """
 
 import base64
 import hashlib
+import html
 import secrets
 import sqlite3
 import time
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).parent
 DB_PATH = ROOT / "beanshelf.db"
 PHOTOS = ROOT / "photos"
 PHOTOS.mkdir(exist_ok=True)
+PUBLIC_BASE = "https://beans.beanshelf.ca"
 
 app = FastAPI(title="Beanshelf Social")
 
@@ -65,6 +67,18 @@ def init() -> None:
                 photo_file TEXT,
                 created_at INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS cheers (
+                post_id TEXT NOT NULL REFERENCES posts(id),
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                PRIMARY KEY (post_id, user_id)
+            );
+            CREATE TABLE IF NOT EXISTS comments (
+                id TEXT PRIMARY KEY,
+                post_id TEXT NOT NULL REFERENCES posts(id),
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                text TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            );
             """
         )
 
@@ -101,14 +115,26 @@ class BeanPost(BaseModel):
     process: str = Field(default="", max_length=40)
     notes: str = Field(default="", max_length=500)
     rating: float = Field(default=0, ge=0, le=5)
-    photo_b64: str | None = Field(default=None, max_length=3_000_000)  # ~2MB decoded
+    photo_b64: str | None = Field(default=None, max_length=3_000_000)
+
+
+class CommentBody(BaseModel):
+    text: str = Field(min_length=1, max_length=400)
 
 
 def user_json(u: sqlite3.Row) -> dict:
     return {"username": u["username"], "display": u["display"]}
 
 
-def post_json(p: sqlite3.Row) -> dict:
+POST_COLS = "posts.*, users.username AS username, users.display AS display"
+
+
+def post_json(conn: sqlite3.Connection, p: sqlite3.Row, me_id: int) -> dict:
+    cheers = conn.execute("SELECT COUNT(*) c FROM cheers WHERE post_id = ?", (p["id"],)).fetchone()["c"]
+    i_cheered = conn.execute(
+        "SELECT 1 FROM cheers WHERE post_id = ? AND user_id = ?", (p["id"], me_id)
+    ).fetchone() is not None
+    ccount = conn.execute("SELECT COUNT(*) c FROM comments WHERE post_id = ?", (p["id"],)).fetchone()["c"]
     return {
         "id": p["id"],
         "username": p["username"],
@@ -122,11 +148,13 @@ def post_json(p: sqlite3.Row) -> dict:
         "rating": p["rating"],
         "photoUrl": f"/photos/{p['photo_file']}" if p["photo_file"] else None,
         "createdAt": p["created_at"],
+        "cheers": cheers,
+        "iCheered": i_cheered,
+        "commentCount": ccount,
     }
 
 
-POST_COLS = "posts.*, users.username AS username, users.display AS display"
-
+# ── auth ──────────────────────────────────────────────────────────────────
 
 @app.post("/auth/register")
 def register(body: Credentials):
@@ -152,6 +180,12 @@ def login(body: Credentials):
     return {"token": u["token"], "username": u["username"], "display": u["display"]}
 
 
+# ── people: search, profile, follow, followers/following ───────────────────
+
+def _following_ids(conn: sqlite3.Connection, me_id: int) -> set:
+    return {r["followee"] for r in conn.execute("SELECT followee FROM follows WHERE follower = ?", (me_id,))}
+
+
 @app.get("/users/search")
 def search_users(q: str, me: sqlite3.Row = Depends(auth)):
     like = f"%{q.lower()}%"
@@ -160,10 +194,31 @@ def search_users(q: str, me: sqlite3.Row = Depends(auth)):
             "SELECT * FROM users WHERE (username LIKE ? OR lower(display) LIKE ?) AND id != ? LIMIT 20",
             (like, like, me["id"]),
         ).fetchall()
-        following = {
-            r["followee"] for r in conn.execute("SELECT followee FROM follows WHERE follower = ?", (me["id"],))
-        }
+        following = _following_ids(conn, me["id"])
     return [{**user_json(r), "following": r["id"] in following} for r in rows]
+
+
+@app.get("/users/{username}/profile")
+def profile(username: str, me: sqlite3.Row = Depends(auth)):
+    with db() as conn:
+        u = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        if u is None:
+            raise HTTPException(404, "no such user")
+        followers = conn.execute("SELECT COUNT(*) c FROM follows WHERE followee = ?", (u["id"],)).fetchone()["c"]
+        following = conn.execute("SELECT COUNT(*) c FROM follows WHERE follower = ?", (u["id"],)).fetchone()["c"]
+        beans = conn.execute("SELECT COUNT(*) c FROM posts WHERE user_id = ?", (u["id"],)).fetchone()["c"]
+        i_follow = conn.execute(
+            "SELECT 1 FROM follows WHERE follower = ? AND followee = ?", (me["id"], u["id"])
+        ).fetchone() is not None
+    return {
+        **user_json(u),
+        "followers": followers,
+        "following": following,
+        "beans": beans,
+        "iFollow": i_follow,
+        "isMe": u["id"] == me["id"],
+        "profileUrl": f"{PUBLIC_BASE}/u/{u['username']}",
+    }
 
 
 @app.post("/follow/{username}")
@@ -172,6 +227,8 @@ def follow(username: str, me: sqlite3.Row = Depends(auth)):
         target = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
         if target is None:
             raise HTTPException(404, "no such user")
+        if target["id"] == me["id"]:
+            raise HTTPException(400, "can't follow yourself")
         conn.execute("INSERT OR IGNORE INTO follows (follower, followee) VALUES (?,?)", (me["id"], target["id"]))
     return {"ok": True}
 
@@ -185,6 +242,35 @@ def unfollow(username: str, me: sqlite3.Row = Depends(auth)):
         conn.execute("DELETE FROM follows WHERE follower = ? AND followee = ?", (me["id"], target["id"]))
     return {"ok": True}
 
+
+def _people_list(username: str, me_id: int, follower_side: bool) -> list:
+    # follower_side=True → who follows `username`; else → who `username` follows.
+    with db() as conn:
+        u = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if u is None:
+            raise HTTPException(404, "no such user")
+        if follower_side:
+            sql = ("SELECT users.* FROM follows JOIN users ON users.id = follows.follower"
+                   " WHERE follows.followee = ? ORDER BY users.username")
+        else:
+            sql = ("SELECT users.* FROM follows JOIN users ON users.id = follows.followee"
+                   " WHERE follows.follower = ? ORDER BY users.username")
+        rows = conn.execute(sql, (u["id"],)).fetchall()
+        my_following = _following_ids(conn, me_id)
+    return [{**user_json(r), "following": r["id"] in my_following} for r in rows]
+
+
+@app.get("/users/{username}/followers")
+def followers(username: str, me: sqlite3.Row = Depends(auth)):
+    return _people_list(username, me["id"], follower_side=True)
+
+
+@app.get("/users/{username}/following")
+def following_list(username: str, me: sqlite3.Row = Depends(auth)):
+    return _people_list(username, me["id"], follower_side=False)
+
+
+# ── posting, feed, discover, leaderboards ──────────────────────────────────
 
 @app.post("/beans")
 def post_bean(body: BeanPost, me: sqlite3.Row = Depends(auth)):
@@ -217,40 +303,133 @@ def feed(me: sqlite3.Row = Depends(auth), limit: int = 50):
             " ORDER BY posts.created_at DESC LIMIT ?",
             (me["id"], me["id"], min(limit, 200)),
         ).fetchall()
-    return [post_json(r) for r in rows]
+        return [post_json(conn, r, me["id"]) for r in rows]
+
+
+@app.get("/discover")
+def discover(me: sqlite3.Row = Depends(auth), limit: int = 50):
+    with db() as conn:
+        rows = conn.execute(
+            f"SELECT {POST_COLS} FROM posts JOIN users ON users.id = posts.user_id"
+            " ORDER BY posts.created_at DESC LIMIT ?",
+            (min(limit, 200),),
+        ).fetchall()
+        return [post_json(conn, r, me["id"]) for r in rows]
 
 
 @app.get("/users/{username}/beans")
-def user_beans(username: str, _: sqlite3.Row = Depends(auth)):
+def user_beans(username: str, me: sqlite3.Row = Depends(auth)):
     with db() as conn:
         rows = conn.execute(
             f"SELECT {POST_COLS} FROM posts JOIN users ON users.id = posts.user_id"
             " WHERE users.username = ? ORDER BY posts.created_at DESC LIMIT 100",
             (username,),
         ).fetchall()
-    return [post_json(r) for r in rows]
+        return [post_json(conn, r, me["id"]) for r in rows]
 
 
 @app.get("/users/{username}/leaderboard")
-def user_leaderboard(username: str, _: sqlite3.Row = Depends(auth)):
+def user_leaderboard(username: str, me: sqlite3.Row = Depends(auth)):
     with db() as conn:
         rows = conn.execute(
             f"SELECT {POST_COLS} FROM posts JOIN users ON users.id = posts.user_id"
             " WHERE users.username = ? AND posts.rating > 0 ORDER BY posts.rating DESC, posts.created_at DESC LIMIT 25",
             (username,),
         ).fetchall()
-    return [post_json(r) for r in rows]
+        return [post_json(conn, r, me["id"]) for r in rows]
 
+
+# ── cheers + comments ──────────────────────────────────────────────────────
+
+@app.post("/beans/{post_id}/cheers")
+def cheer(post_id: str, me: sqlite3.Row = Depends(auth)):
+    with db() as conn:
+        if conn.execute("SELECT 1 FROM posts WHERE id = ?", (post_id,)).fetchone() is None:
+            raise HTTPException(404, "no such post")
+        conn.execute("INSERT OR IGNORE INTO cheers (post_id, user_id) VALUES (?,?)", (post_id, me["id"]))
+        c = conn.execute("SELECT COUNT(*) c FROM cheers WHERE post_id = ?", (post_id,)).fetchone()["c"]
+    return {"cheers": c, "iCheered": True}
+
+
+@app.delete("/beans/{post_id}/cheers")
+def uncheer(post_id: str, me: sqlite3.Row = Depends(auth)):
+    with db() as conn:
+        conn.execute("DELETE FROM cheers WHERE post_id = ? AND user_id = ?", (post_id, me["id"]))
+        c = conn.execute("SELECT COUNT(*) c FROM cheers WHERE post_id = ?", (post_id,)).fetchone()["c"]
+    return {"cheers": c, "iCheered": False}
+
+
+@app.get("/beans/{post_id}/comments")
+def get_comments(post_id: str, _: sqlite3.Row = Depends(auth)):
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT comments.*, users.username, users.display FROM comments"
+            " JOIN users ON users.id = comments.user_id WHERE post_id = ? ORDER BY created_at ASC",
+            (post_id,),
+        ).fetchall()
+    return [
+        {"id": r["id"], "username": r["username"], "display": r["display"],
+         "text": r["text"], "createdAt": r["created_at"]}
+        for r in rows
+    ]
+
+
+@app.post("/beans/{post_id}/comments")
+def add_comment(post_id: str, body: CommentBody, me: sqlite3.Row = Depends(auth)):
+    cid = secrets.token_hex(10)
+    with db() as conn:
+        if conn.execute("SELECT 1 FROM posts WHERE id = ?", (post_id,)).fetchone() is None:
+            raise HTTPException(404, "no such post")
+        conn.execute(
+            "INSERT INTO comments (id, post_id, user_id, text, created_at) VALUES (?,?,?,?,?)",
+            (cid, post_id, me["id"], body.text.strip(), int(time.time() * 1000)),
+        )
+    return {"id": cid}
+
+
+# ── photos + shareable profile landing page ────────────────────────────────
 
 @app.get("/photos/{name}")
 def photo(name: str):
-    # ids are unguessable hex; extension whitelist keeps this from serving arbitrary files
     if not name.replace(".", "").replace("jpg", "").replace("png", "").isalnum() or "/" in name or ".." in name:
         raise HTTPException(400, "bad name")
     f = PHOTOS / name
     if not f.exists():
         raise HTTPException(404, "no photo")
     return FileResponse(f)
+
+
+@app.get("/u/{username}", response_class=HTMLResponse)
+def profile_page(username: str):
+    """Human-facing invite landing. Opening beans.beanshelf.ca/u/<name> in a
+    browser offers to open the app (custom scheme) or explains how to get it."""
+    with db() as conn:
+        u = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        if u is None:
+            return HTMLResponse("<h1>No such user</h1>", status_code=404)
+        beans = conn.execute("SELECT COUNT(*) c FROM posts WHERE user_id = ?", (u["id"],)).fetchone()["c"]
+    name = html.escape(u["display"])
+    uname = html.escape(u["username"])
+    return HTMLResponse(f"""<!doctype html><html><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>{name} on Beanshelf</title>
+<style>
+  body{{margin:0;background:#17100B;color:#F0E4D2;font-family:-apple-system,system-ui,sans-serif;
+       display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center}}
+  .card{{padding:40px 28px;max-width:340px}}
+  .bean{{font-size:44px}} h1{{font-family:Georgia,serif;margin:.3em 0 .1em}}
+  .at{{color:#D9A468;letter-spacing:.05em}} .sub{{color:#A38B72;margin:.6em 0 1.6em}}
+  a.btn{{display:block;background:#D9A468;color:#17100B;text-decoration:none;font-weight:600;
+        padding:14px;border-radius:12px;margin:10px 0}}
+  a.ghost{{color:#D9A468;text-decoration:none;font-size:14px}}
+</style></head><body><div class=card>
+  <div class=bean>&#9749;</div>
+  <h1>{name}</h1>
+  <div class=at>@{uname}</div>
+  <div class=sub>{beans} bean{'s' if beans != 1 else ''} on their Beanshelf</div>
+  <a class=btn href="beanshelf://u/{uname}">Open in Beanshelf</a>
+  <a class=ghost href="beanshelf://u/{uname}">Don't have the app? Ask {name} for it.</a>
+</div></body></html>""")
 
 
 @app.get("/ping")

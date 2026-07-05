@@ -35,8 +35,22 @@ object SocialClient {
         val rating: Float,
         val photoUrl: String?, // absolute
         val createdAt: Long,
+        val cheers: Int,
+        val iCheered: Boolean,
+        val commentCount: Int,
     )
     data class UserHit(val username: String, val display: String, val following: Boolean)
+    data class Profile(
+        val username: String,
+        val display: String,
+        val followers: Int,
+        val following: Int,
+        val beans: Int,
+        val iFollow: Boolean,
+        val isMe: Boolean,
+        val profileUrl: String,
+    )
+    data class Comment(val id: String, val username: String, val display: String, val text: String, val createdAt: Long)
 
     class SocialException(message: String) : Exception(message)
 
@@ -143,8 +157,56 @@ object SocialClient {
 
     suspend fun feed(a: Account): List<FeedPost> = parsePosts(a, request(a.serverUrl, "/feed", "GET", a.token, null))
 
+    suspend fun discover(a: Account): List<FeedPost> = parsePosts(a, request(a.serverUrl, "/discover", "GET", a.token, null))
+
     suspend fun userLeaderboard(a: Account, username: String): List<FeedPost> =
         parsePosts(a, request(a.serverUrl, "/users/$username/leaderboard", "GET", a.token, null))
+
+    suspend fun profile(a: Account, username: String): Profile {
+        val o = JSONObject(request(a.serverUrl, "/users/$username/profile", "GET", a.token, null))
+        return Profile(
+            username = o.getString("username"),
+            display = o.optString("display"),
+            followers = o.optInt("followers"),
+            following = o.optInt("following"),
+            beans = o.optInt("beans"),
+            iFollow = o.optBoolean("iFollow"),
+            isMe = o.optBoolean("isMe"),
+            profileUrl = o.optString("profileUrl"),
+        )
+    }
+
+    private fun parsePeople(text: String): List<UserHit> {
+        val arr = JSONArray(text)
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            UserHit(o.getString("username"), o.optString("display"), o.optBoolean("following"))
+        }
+    }
+
+    suspend fun followers(a: Account, username: String): List<UserHit> =
+        parsePeople(request(a.serverUrl, "/users/$username/followers", "GET", a.token, null))
+
+    suspend fun followingList(a: Account, username: String): List<UserHit> =
+        parsePeople(request(a.serverUrl, "/users/$username/following", "GET", a.token, null))
+
+    /** Returns the new cheer count. */
+    suspend fun setCheer(a: Account, postId: String, on: Boolean): Int {
+        val o = JSONObject(request(a.serverUrl, "/beans/$postId/cheers", if (on) "POST" else "DELETE", a.token, JSONObject().takeIf { on }))
+        return o.optInt("cheers")
+    }
+
+    suspend fun comments(a: Account, postId: String): List<Comment> {
+        val arr = JSONArray(request(a.serverUrl, "/beans/$postId/comments", "GET", a.token, null))
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            Comment(o.getString("id"), o.optString("username"), o.optString("display"), o.optString("text"), o.optLong("createdAt"))
+        }
+    }
+
+    suspend fun addComment(a: Account, postId: String, text: String) {
+        request(a.serverUrl, "/beans/$postId/comments", "POST", a.token, JSONObject().apply { put("text", text) })
+    }
 
     private fun parsePosts(a: Account, text: String): List<FeedPost> {
         val arr = JSONArray(text)
@@ -163,6 +225,9 @@ object SocialClient {
                 rating = o.optDouble("rating", 0.0).toFloat(),
                 photoUrl = if (o.isNull("photoUrl")) null else a.serverUrl + o.getString("photoUrl"),
                 createdAt = o.optLong("createdAt"),
+                cheers = o.optInt("cheers"),
+                iCheered = o.optBoolean("iCheered"),
+                commentCount = o.optInt("commentCount"),
             )
         }
     }
