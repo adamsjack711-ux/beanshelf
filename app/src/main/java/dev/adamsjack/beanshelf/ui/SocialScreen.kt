@@ -256,40 +256,65 @@ private fun PostCard(account: Account, post: FeedPost, onOpenProfile: (String) -
             }
             if (post.rating > 0f) RoastStamp(post.rating, size = 44.dp, modifier = Modifier.padding(start = 8.dp))
         }
-        // cheers + comments action row
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp, start = 70.dp)) {
+        // Like + comment action bar (with a hairline above it)
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp).height(1.dp).background(Dim.copy(alpha = 0.15f))) {}
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable {
-                    cheered = !cheered
-                    cheerCount += if (cheered) 1 else -1
-                    scope.launch {
-                        runCatching { SocialClient.setCheer(account, post.id, cheered) }
-                            .onSuccess { cheerCount = it }
-                            .onFailure { cheered = !cheered; cheerCount += if (cheered) 1 else -1 }
+                modifier = Modifier
+                    .clickable {
+                        cheered = !cheered
+                        cheerCount += if (cheered) 1 else -1
+                        scope.launch {
+                            runCatching { SocialClient.setCheer(account, post.id, cheered) }
+                                .onSuccess { cheerCount = it }
+                                .onFailure { cheered = !cheered; cheerCount += if (cheered) 1 else -1 }
+                        }
                     }
-                },
+                    .padding(vertical = 4.dp, horizontal = 4.dp),
             ) {
                 Icon(
                     if (cheered) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Cheers", tint = if (cheered) Crema else Dim, modifier = Modifier.size(18.dp),
+                    contentDescription = "Like", tint = if (cheered) Crema else Dim, modifier = Modifier.size(20.dp),
                 )
                 Text(
-                    if (cheerCount > 0) "$cheerCount" else "Cheers",
-                    color = if (cheered) Crema else Dim, style = MaterialTheme.typography.bodySmall,
+                    if (cheerCount > 0) "$cheerCount" else "Like",
+                    color = if (cheered) Crema else Dim, style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(start = 6.dp),
                 )
             }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 24.dp).clickable { onOpenComments(post) },
+                modifier = Modifier.padding(start = 18.dp).clickable { onOpenComments(post) }.padding(vertical = 4.dp, horizontal = 4.dp),
             ) {
-                Icon(Icons.Default.ChatBubbleOutline, contentDescription = "Comments", tint = Dim, modifier = Modifier.size(17.dp))
+                Icon(Icons.Default.ChatBubbleOutline, contentDescription = "Comment", tint = Dim, modifier = Modifier.size(19.dp))
                 Text(
                     if (post.commentCount > 0) "${post.commentCount}" else "Comment",
-                    color = Dim, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 6.dp),
+                    color = Dim, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 6.dp),
                 )
             }
+        }
+        // Inline comment preview / prompt — commenting is always one tap from the feed.
+        if (post.commentCount > 1) {
+            Text(
+                "View all ${post.commentCount} comments",
+                color = Dim, style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp).clickable { onOpenComments(post) },
+            )
+        }
+        val lu = post.lastCommentUser
+        val lt = post.lastCommentText
+        if (lu != null && lt != null) {
+            Row(Modifier.padding(top = 2.dp).clickable { onOpenComments(post) }) {
+                Text("@$lu", color = Crema, style = MaterialTheme.typography.bodySmall)
+                Text("  $lt", color = Parchment.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall, maxLines = 2)
+            }
+        } else {
+            Text(
+                "Add a comment…",
+                color = Dim, style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp).clickable { onOpenComments(post) },
+            )
         }
     }
 }

@@ -135,6 +135,11 @@ def post_json(conn: sqlite3.Connection, p: sqlite3.Row, me_id: int) -> dict:
         "SELECT 1 FROM cheers WHERE post_id = ? AND user_id = ?", (p["id"], me_id)
     ).fetchone() is not None
     ccount = conn.execute("SELECT COUNT(*) c FROM comments WHERE post_id = ?", (p["id"],)).fetchone()["c"]
+    last = conn.execute(
+        "SELECT comments.text AS text, users.username AS username FROM comments"
+        " JOIN users ON users.id = comments.user_id WHERE post_id = ? ORDER BY comments.created_at DESC LIMIT 1",
+        (p["id"],),
+    ).fetchone()
     return {
         "id": p["id"],
         "username": p["username"],
@@ -151,6 +156,8 @@ def post_json(conn: sqlite3.Connection, p: sqlite3.Row, me_id: int) -> dict:
         "cheers": cheers,
         "iCheered": i_cheered,
         "commentCount": ccount,
+        "lastCommentUser": last["username"] if last else None,
+        "lastCommentText": last["text"] if last else None,
     }
 
 

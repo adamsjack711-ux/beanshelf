@@ -38,6 +38,8 @@ object SocialClient {
         val cheers: Int,
         val iCheered: Boolean,
         val commentCount: Int,
+        val lastCommentUser: String?,
+        val lastCommentText: String?,
     )
     data class UserHit(val username: String, val display: String, val following: Boolean)
     data class Profile(
@@ -228,6 +230,8 @@ object SocialClient {
                 cheers = o.optInt("cheers"),
                 iCheered = o.optBoolean("iCheered"),
                 commentCount = o.optInt("commentCount"),
+                lastCommentUser = if (o.isNull("lastCommentUser")) null else o.optString("lastCommentUser"),
+                lastCommentText = if (o.isNull("lastCommentText")) null else o.optString("lastCommentText"),
             )
         }
     }
