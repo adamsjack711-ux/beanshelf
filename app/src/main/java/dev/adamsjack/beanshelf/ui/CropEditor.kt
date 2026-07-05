@@ -58,8 +58,18 @@ import kotlin.math.min
 @Composable
 fun CropDialog(path: String, onDone: (String?) -> Unit) {
     val scope = rememberCoroutineScope()
-    val bitmap by produceState<Bitmap?>(initialValue = null, path) {
+    var rotation by remember { mutableStateOf(0) } // 0/90/180/270, clockwise
+    val loaded by produceState<Bitmap?>(initialValue = null, path) {
         value = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) }
+    }
+    // Camera EXIF is sometimes wrong — the Rotate button makes straightening deterministic.
+    val bitmap = remember(loaded, rotation) {
+        val src = loaded
+        if (src == null || rotation == 0) src
+        else Bitmap.createBitmap(
+            src, 0, 0, src.width, src.height,
+            android.graphics.Matrix().apply { postRotate(rotation.toFloat()) }, true,
+        )
     }
 
     Dialog(
@@ -174,7 +184,10 @@ fun CropDialog(path: String, onDone: (String?) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = { onDone(null) }) { Text("Cancel", color = Dim) }
-                TextButton(onClick = { crop = imageRect }, modifier = Modifier.padding(start = 8.dp)) {
+                TextButton(onClick = { rotation = (rotation + 90) % 360 }) {
+                    Text("Rotate ⟳", color = Crema)
+                }
+                TextButton(onClick = { crop = imageRect; rotation = 0 }, modifier = Modifier.padding(start = 4.dp)) {
                     Text("Reset", color = Parchment)
                 }
                 Box(Modifier.weight(1f))
@@ -182,28 +195,28 @@ fun CropDialog(path: String, onDone: (String?) -> Unit) {
                     onClick = {
                         scope.launch {
                             val newPath = withContext(Dispatchers.IO) {
-                                applyCrop(bmp, path, crop, imageRect)
+                                applyCrop(bmp, path, crop, imageRect, force = rotation != 0)
                             }
                             onDone(newPath)
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Crema, contentColor = Roast),
-                ) { Text("Crop") }
+                ) { Text("Save") }
             }
         }
     }
 }
 
 /** Maps the display-space frame back to bitmap pixels and writes a new file. */
-private fun applyCrop(bmp: Bitmap, oldPath: String, crop: Rect, imageRect: Rect): String? =
+private fun applyCrop(bmp: Bitmap, oldPath: String, crop: Rect, imageRect: Rect, force: Boolean = false): String? =
     runCatching {
         val scale = bmp.width / imageRect.width
         val l = ((crop.left - imageRect.left) * scale).toInt().coerceIn(0, bmp.width - 1)
         val t = ((crop.top - imageRect.top) * scale).toInt().coerceIn(0, bmp.height - 1)
         val w = (crop.width * scale).toInt().coerceIn(1, bmp.width - l)
         val h = (crop.height * scale).toInt().coerceIn(1, bmp.height - t)
-        // No-op crop → keep the original file.
-        if (l == 0 && t == 0 && abs(w - bmp.width) < 4 && abs(h - bmp.height) < 4) return@runCatching oldPath
+        // No-op crop (and no rotation) → keep the original file.
+        if (!force && l == 0 && t == 0 && abs(w - bmp.width) < 4 && abs(h - bmp.height) < 4) return@runCatching oldPath
 
         val cropped = Bitmap.createBitmap(bmp, l, t, w, h)
         val old = File(oldPath)

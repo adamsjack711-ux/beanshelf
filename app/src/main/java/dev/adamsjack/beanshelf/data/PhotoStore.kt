@@ -81,10 +81,13 @@ object PhotoStore {
             ExifInterface(src.absolutePath)
                 .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
         }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+        android.util.Log.d("PhotoStore", "import ${src.name}: ${raw.width}x${raw.height} exifOrientation=$orientation")
         val degrees = when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_90,
+            ExifInterface.ORIENTATION_TRANSPOSE -> 90f
             ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            ExifInterface.ORIENTATION_ROTATE_270,
+            ExifInterface.ORIENTATION_TRANSVERSE -> 270f
             else -> 0f
         }
         if (degrees == 0f) return raw
