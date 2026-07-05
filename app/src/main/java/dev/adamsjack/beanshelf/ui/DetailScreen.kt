@@ -65,9 +65,13 @@ import androidx.compose.ui.unit.dp
 import dev.adamsjack.beanshelf.data.Affiliate
 import dev.adamsjack.beanshelf.data.BagCropper
 import dev.adamsjack.beanshelf.data.PhotoStore
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.input.KeyboardType
 import dev.adamsjack.beanshelf.model.BREW_METHODS
 import dev.adamsjack.beanshelf.model.Bean
 import dev.adamsjack.beanshelf.model.Brew
+import dev.adamsjack.beanshelf.model.formatGrams
 import dev.adamsjack.beanshelf.model.formatRating
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -80,6 +84,7 @@ private val dateFmt = SimpleDateFormat("MMM d, yyyy · h:mm a", Locale.getDefaul
 @Composable
 fun DetailScreen(
     bean: Bean,
+    allBrews: List<Brew>, // every brew across the shelf, newest first — used to prefill equipment
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -133,6 +138,7 @@ fun DetailScreen(
 
     if (showBrewSheet) {
         LogBrewSheet(
+            allBrews = allBrews,
             onDismiss = { showBrewSheet = false },
             onLog = { showBrewSheet = false; onLogBrew(it) },
         )
@@ -366,6 +372,28 @@ private fun BrewRow(brew: Brew) {
             if (brew.note.isNotBlank()) {
                 Text(brew.note, style = MaterialTheme.typography.bodyMedium, color = Parchment)
             }
+            // Recipe line: "18g → 300g (1:16.7) · Ode @ 6"
+            val recipe = buildList {
+                val d = brew.doseG
+                val w = brew.waterG
+                when {
+                    d != null && w != null -> add("${formatGrams(d)}g → ${formatGrams(w)}g" +
+                        (brew.ratio?.let { " ($it)" } ?: ""))
+                    d != null -> add("${formatGrams(d)}g dose")
+                    w != null -> add("${formatGrams(w)}g water")
+                }
+                if (brew.grinder.isNotBlank() || brew.grindSize.isNotBlank()) {
+                    add(listOf(brew.grinder, brew.grindSize).filter { it.isNotBlank() }.joinToString(" @ "))
+                }
+            }.joinToString("  ·  ")
+            if (recipe.isNotBlank()) {
+                Text(
+                    recipe,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Crema.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             Text(
                 dateFmt.format(Date(brew.timestamp)),
                 style = MaterialTheme.typography.bodySmall,
@@ -386,24 +414,68 @@ private fun BrewRow(brew: Brew) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LogBrewSheet(onDismiss: () -> Unit, onLog: (Brew) -> Unit) {
+private fun LogBrewSheet(allBrews: List<Brew>, onDismiss: () -> Unit, onLog: (Brew) -> Unit) {
     var method by rememberSaveable { mutableStateOf(BREW_METHODS.first()) }
     var rating by rememberSaveable { mutableStateOf(0f) }
     var note by rememberSaveable { mutableStateOf("") }
+    var dose by rememberSaveable { mutableStateOf("") }
+    var water by rememberSaveable { mutableStateOf("") }
+    // Equipment rarely changes — prefill from the last brew; grind follows the method.
+    var grinder by rememberSaveable {
+        mutableStateOf(allBrews.firstOrNull { it.grinder.isNotBlank() }?.grinder ?: "")
+    }
+    var grindSize by rememberSaveable { mutableStateOf("") }
+    var grindTouched by rememberSaveable { mutableStateOf(false) }
+
+    fun prefillForMethod(m: String) {
+        if (grindTouched) return
+        allBrews.firstOrNull { it.method == m }?.let { last ->
+            if (last.grindSize.isNotBlank()) grindSize = last.grindSize
+            if (dose.isBlank() && last.doseG != null) dose = formatGrams(last.doseG)
+            if (water.isBlank() && last.waterG != null) water = formatGrams(last.waterG)
+        }
+    }
+    LaunchedEffect(Unit) { prefillForMethod(method) }
+
+    val ratioPreview = run {
+        val d = dose.toFloatOrNull()
+        val w = water.toFloatOrNull()
+        if (d != null && w != null && d > 0f && w > 0f) {
+            val r = w / d
+            "1:" + if (r % 1f < 0.05f || r % 1f > 0.95f) "%.0f".format(r) else "%.1f".format(r)
+        } else null
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Surface2) {
         Column(
             Modifier
-                .imePadding() // keep the note field and button above the keyboard
+                .imePadding() // keep fields and button above the keyboard
                 .verticalScroll(rememberScrollState())
                 .padding(start = 24.dp, end = 24.dp, bottom = 36.dp),
         ) {
             Text("Log a brew", style = MaterialTheme.typography.titleLarge, color = Parchment)
 
             Eyebrow("Method", Modifier.padding(top = 18.dp, bottom = 6.dp))
-            ChoiceChips(BREW_METHODS, method) { method = it }
+            ChoiceChips(BREW_METHODS, method) { method = it; prefillForMethod(it) }
 
-            Eyebrow("How was the cup?", Modifier.padding(top = 18.dp, bottom = 4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp)) {
+                Eyebrow("Recipe", Modifier.weight(1f))
+                if (ratioPreview != null) {
+                    Text(ratioPreview, style = MaterialTheme.typography.titleMedium, color = Crema)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                BrewField(dose, { dose = it }, "Dose (g)", numeric = true, Modifier.weight(1f))
+                BrewField(water, { water = it }, "Water / yield (g)", numeric = true, Modifier.weight(1f))
+            }
+
+            Eyebrow("Equipment", Modifier.padding(top = 16.dp, bottom = 6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                BrewField(grinder, { grinder = it }, "Grinder", numeric = false, Modifier.weight(1.2f))
+                BrewField(grindSize, { grindSize = it; grindTouched = true }, "Grind", numeric = false, Modifier.weight(1f))
+            }
+
+            Eyebrow("The cup", Modifier.padding(top = 16.dp, bottom = 4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RoastStamp(rating = rating, size = 48.dp)
                 RatingSlider(
@@ -412,20 +484,9 @@ private fun LogBrewSheet(onDismiss: () -> Unit, onLog: (Brew) -> Unit) {
                     modifier = Modifier.weight(1f).padding(start = 16.dp),
                 )
             }
-
-            OutlinedTextField(
-                value = note,
-                onValueChange = { note = it },
-                placeholder = { Text("Grind, ratio, impressions…", color = Dim) },
-                minLines = 2,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Crema,
-                    unfocusedBorderColor = Dim.copy(alpha = 0.4f),
-                    cursorColor = Crema,
-                    focusedTextColor = Parchment,
-                    unfocusedTextColor = Parchment,
-                ),
+            BrewField(
+                note, { note = it }, "Tasted like…", numeric = false,
+                Modifier.fillMaxWidth().padding(top = 10.dp), minLines = 2,
             )
 
             Button(
@@ -437,6 +498,10 @@ private fun LogBrewSheet(onDismiss: () -> Unit, onLog: (Brew) -> Unit) {
                             rating = rating,
                             note = note.trim(),
                             timestamp = System.currentTimeMillis(),
+                            doseG = dose.toFloatOrNull(),
+                            waterG = water.toFloatOrNull(),
+                            grinder = grinder.trim(),
+                            grindSize = grindSize.trim(),
                         )
                     )
                 },
@@ -447,4 +512,33 @@ private fun LogBrewSheet(onDismiss: () -> Unit, onLog: (Brew) -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun BrewField(
+    value: String,
+    onChange: (String) -> Unit,
+    label: String,
+    numeric: Boolean,
+    modifier: Modifier = Modifier,
+    minLines: Int = 1,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        singleLine = minLines == 1,
+        minLines = minLines,
+        keyboardOptions = if (numeric) KeyboardOptions(keyboardType = KeyboardType.Decimal) else KeyboardOptions.Default,
+        modifier = modifier,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Crema,
+            unfocusedBorderColor = Dim.copy(alpha = 0.4f),
+            focusedLabelColor = Crema,
+            unfocusedLabelColor = Dim,
+            cursorColor = Crema,
+            focusedTextColor = Parchment,
+            unfocusedTextColor = Parchment,
+        ),
+    )
 }

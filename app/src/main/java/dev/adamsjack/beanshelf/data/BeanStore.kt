@@ -53,6 +53,10 @@ class BeanStore(context: Context) {
                     put("rating", br.rating.toDouble())
                     put("note", br.note)
                     put("timestamp", br.timestamp)
+                    put("doseG", br.doseG?.toDouble() ?: JSONObject.NULL)
+                    put("waterG", br.waterG?.toDouble() ?: JSONObject.NULL)
+                    put("grinder", br.grinder)
+                    put("grindSize", br.grindSize)
                 })
             }
         })
@@ -83,6 +87,10 @@ class BeanStore(context: Context) {
                     rating = br.optDouble("rating", 0.0).toFloat(),
                     note = br.optString("note"),
                     timestamp = br.optLong("timestamp"),
+                    doseG = if (br.isNull("doseG")) null else br.optDouble("doseG").toFloat(),
+                    waterG = if (br.isNull("waterG")) null else br.optDouble("waterG").toFloat(),
+                    grinder = br.optString("grinder"),
+                    grindSize = br.optString("grindSize"),
                 )
             },
         )

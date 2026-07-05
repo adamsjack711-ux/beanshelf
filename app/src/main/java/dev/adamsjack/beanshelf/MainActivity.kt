@@ -84,6 +84,7 @@ private fun App(vm: AppViewModel) {
                 } else {
                     DetailScreen(
                         bean = bean,
+                        allBrews = beans.flatMap { it.brews }.sortedByDescending { it.timestamp },
                         onBack = { vm.nav = Screen.Shelf },
                         onEdit = { vm.nav = Screen.Edit(bean.id) },
                         onDelete = {

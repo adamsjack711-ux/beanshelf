@@ -5,9 +5,27 @@ data class Brew(
     val id: String,
     val method: String,
     val rating: Float,      // 0f = unrated; otherwise 0.25..5.0 in quarter steps
-    val note: String,
+    val note: String,       // how the cup tasted
     val timestamp: Long,
-)
+    val doseG: Float?,      // coffee in, grams
+    val waterG: Float?,     // water in / yield out, grams
+    val grinder: String,    // equipment: grinder name
+    val grindSize: String,  // equipment: grind setting ("24 clicks", "3.5")
+) {
+    /** "1:16.7" derived from dose and water, or null. */
+    val ratio: String?
+        get() {
+            val d = doseG ?: return null
+            val w = waterG ?: return null
+            if (d <= 0f || w <= 0f) return null
+            val r = w / d
+            return "1:" + if (r % 1f < 0.05f || r % 1f > 0.95f) "%.0f".format(r) else "%.1f".format(r)
+        }
+}
+
+/** "18" or "18.5" — grams without trailing zeros. */
+fun formatGrams(g: Float): String =
+    if (g % 1f == 0f) "%.0f".format(g) else "%.1f".format(g)
 
 data class Bean(
     val id: String,
