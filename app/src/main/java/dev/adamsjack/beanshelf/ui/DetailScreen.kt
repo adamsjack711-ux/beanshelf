@@ -31,9 +31,15 @@ import android.net.Uri
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocalCafe
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import dev.adamsjack.beanshelf.data.BeanPack
+import dev.adamsjack.beanshelf.data.ShareCard
+import kotlinx.coroutines.launch
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -184,8 +190,53 @@ private fun Hero(bean: Bean, onBack: () -> Unit, onEdit: () -> Unit, onDelete: (
         ) {
             ScrimIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onBack)
             Box(Modifier.weight(1f))
+            ShareButton(bean)
             ScrimIconButton(Icons.Default.Edit, "Edit bag", onEdit)
             ScrimIconButton(Icons.Default.Delete, "Remove bag", onDelete)
+        }
+    }
+}
+
+/** Post the bean: share-card image for anywhere, or a .beanshelf pack for a friend. */
+@Composable
+private fun ShareButton(bean: Bean) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var menu by remember { mutableStateOf(false) }
+
+    fun send(file: java.io.File, mime: String, title: String) {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = mime
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { context.startActivity(Intent.createChooser(intent, title)) }
+    }
+
+    Box {
+        ScrimIconButton(Icons.Default.Share, "Share bean") { menu = true }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = SurfaceHigh) {
+            DropdownMenuItem(
+                text = { Text("Post a card (image)", color = Parchment) },
+                onClick = {
+                    menu = false
+                    scope.launch {
+                        val card = ShareCard.render(context, bean)
+                        send(card, "image/png", "Post ${bean.name}")
+                    }
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Send bean to a friend", color = Parchment) },
+                onClick = {
+                    menu = false
+                    scope.launch {
+                        val pack = BeanPack.export(context, bean)
+                        send(pack, "application/octet-stream", "Send ${bean.name}")
+                    }
+                },
+            )
         }
     }
 }

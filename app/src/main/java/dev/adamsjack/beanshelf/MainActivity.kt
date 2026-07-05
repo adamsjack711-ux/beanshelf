@@ -72,6 +72,7 @@ private fun App(vm: AppViewModel) {
                 onAdd = { vm.nav = Screen.Edit(null) },
                 onOpen = { vm.nav = Screen.Detail(it.id) },
                 onLeaderboard = { vm.nav = Screen.Leaderboard },
+                onImport = { vm.importBean(it) },
             )
 
             is Screen.Leaderboard -> LeaderboardScreen(
@@ -89,6 +90,7 @@ private fun App(vm: AppViewModel) {
                         onAdd = { vm.nav = Screen.Edit(null) },
                         onOpen = { vm.nav = Screen.Detail(it.id) },
                         onLeaderboard = { vm.nav = Screen.Leaderboard },
+                        onImport = { vm.importBean(it) },
                     )
                 } else {
                     DetailScreen(

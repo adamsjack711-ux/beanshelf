@@ -17,8 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Button
@@ -56,7 +59,11 @@ fun ShelfScreen(
     onAdd: () -> Unit,
     onOpen: (Bean) -> Unit,
     onLeaderboard: () -> Unit,
+    onImport: (android.net.Uri) -> Unit,
 ) {
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) onImport(uri)
+    }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
@@ -80,7 +87,7 @@ fun ShelfScreen(
                     bottom = padding.calculateBottomPadding() + 96.dp,
                 ),
             ) {
-                item { ShelfHeader(beans, onLeaderboard) }
+                item { ShelfHeader(beans, onLeaderboard, onImport = { importLauncher.launch("*/*") }) }
                 items(rows.size) { i -> ShelfRow(rows[i], onOpen) }
             }
         }
@@ -88,7 +95,7 @@ fun ShelfScreen(
 }
 
 @Composable
-private fun ShelfHeader(beans: List<Bean>, onLeaderboard: () -> Unit) {
+private fun ShelfHeader(beans: List<Bean>, onLeaderboard: () -> Unit, onImport: () -> Unit) {
     Column(Modifier.padding(start = 24.dp, end = 16.dp, top = 28.dp, bottom = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -97,6 +104,9 @@ private fun ShelfHeader(beans: List<Bean>, onLeaderboard: () -> Unit) {
                 color = Parchment,
                 modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onImport) {
+                Icon(Icons.Default.MoveToInbox, contentDescription = "Import a bean from a friend", tint = Crema)
+            }
             IconButton(onClick = onLeaderboard) {
                 Icon(Icons.Default.EmojiEvents, contentDescription = "Leaderboard", tint = Crema)
             }

@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.adamsjack.beanshelf.data.BeanPack
 import dev.adamsjack.beanshelf.data.BeanStore
 import dev.adamsjack.beanshelf.data.PhotoStore
 import dev.adamsjack.beanshelf.model.Bean
@@ -58,6 +59,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         _beans.value = _beans.value.filterNot { it.id == id }
         persist()
+    }
+
+    /** Imports a friend's .beanshelf file onto the shelf. */
+    fun importBean(uri: android.net.Uri) {
+        viewModelScope.launch {
+            val bean = BeanPack.import(getApplication(), uri)
+            if (bean != null) {
+                _beans.value = (listOf(bean) + _beans.value).sortedByDescending { it.createdAt }
+                persist()
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "\"${bean.name.ifBlank { "Bean" }}\" added to your shelf",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            } else {
+                android.widget.Toast.makeText(
+                    getApplication(), "That file isn't a bean pack", android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
     }
 
     fun addBrew(beanId: String, brew: Brew) {
