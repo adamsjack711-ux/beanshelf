@@ -99,9 +99,6 @@ fun SocialScreen(onBack: () -> Unit) {
 private fun AccountForm(onBack: () -> Unit, onSignedIn: (Account) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var serverUrl by rememberSaveable {
-        mutableStateOf(SocialClient.lastServerUrl(context).ifBlank { DEFAULT_SERVER })
-    }
     var username by rememberSaveable { mutableStateOf("") }
     var display by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -113,8 +110,8 @@ private fun AccountForm(onBack: () -> Unit, onSignedIn: (Account) -> Unit) {
         busy = true; error = null
         scope.launch {
             runCatching {
-                if (register) SocialClient.register(context, serverUrl.trim(), username.trim(), display, password)
-                else SocialClient.login(context, serverUrl.trim(), username.trim(), password)
+                if (register) SocialClient.register(context, DEFAULT_SERVER, username.trim(), display, password)
+                else SocialClient.login(context, DEFAULT_SERVER, username.trim(), password)
             }.onSuccess { onSignedIn(it) }
                 .onFailure { error = it.message ?: "Couldn't reach the server" }
             busy = false
@@ -142,10 +139,7 @@ private fun AccountForm(onBack: () -> Unit, onSignedIn: (Account) -> Unit) {
                 modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
             )
 
-            Eyebrow("Server", Modifier.padding(bottom = 8.dp))
-            SocialField(serverUrl, { serverUrl = it }, "Server address")
-
-            Eyebrow("You", Modifier.padding(top = 18.dp, bottom = 8.dp))
+            Eyebrow("You", Modifier.padding(bottom = 8.dp))
             SocialField(username, { username = it.lowercase() }, "Username — letters, numbers, _")
             SocialField(display, { display = it }, "Display name (optional)")
             SocialField(password, { password = it }, "Password", password = true)
