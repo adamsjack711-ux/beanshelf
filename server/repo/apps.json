@@ -1,0 +1,33 @@
+{
+  "name": "Beanshelf",
+  "identifier": "ca.beanshelf.repo",
+  "subtitle": "Coffee bags, shelved.",
+  "description": "The Beanshelf source. Add this to AltStore or SideStore and install Beanshelf with your own Apple ID — no App Store, no developer account.",
+  "iconURL": "https://beans.beanshelf.ca/repo/icon.png",
+  "website": "https://beans.beanshelf.ca",
+  "tintColor": "#C2703A",
+  "apps": [
+    {
+      "name": "Beanshelf",
+      "bundleIdentifier": "dev.adamsjack.beanshelf",
+      "developerName": "Jack Adams-Lovell",
+      "subtitle": "Coffee bags, shelved.",
+      "localizedDescription": "Photograph a bag of beans and it lands on a wooden shelf. The label is read on-device to fill in roaster, origin, variety and tasting notes; rate bags Untappd-style in quarter steps, log every brew with its recipe, and share beans with friends — cards, bean packs, or the built-in feed.",
+      "iconURL": "https://beans.beanshelf.ca/repo/icon.png",
+      "tintColor": "#C2703A",
+      "category": "lifestyle",
+      "screenshots": [],
+      "versions": [
+        {
+          "version": "1.0",
+          "buildVersion": "1",
+          "date": "2026-07-05",
+          "minOSVersion": "17.0",
+          "localizedDescription": "First release: the shelf, label scanning, brew log, leaderboard, themes, and the social feed.",
+          "downloadURL": "https://beans.beanshelf.ca/repo/beanshelf-1.0.ipa",
+          "size": 973993
+        }
+      ]
+    }
+  ]
+}

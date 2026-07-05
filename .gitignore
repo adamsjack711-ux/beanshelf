@@ -4,3 +4,10 @@ app/build/
 local.properties
 .DS_Store
 .kotlin/
+
+# app distribution
+keystore/
+ios/build/
+ios/dist/
+server/repo/*.ipa
+server/repo/*.apk

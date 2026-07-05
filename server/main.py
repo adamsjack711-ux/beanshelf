@@ -439,6 +439,63 @@ def profile_page(username: str):
 </div></body></html>""")
 
 
+# ── app downloads: AltStore source + APK, one landing page ─────────────────
+
+REPO = ROOT / "repo"
+
+
+@app.get("/repo", response_class=HTMLResponse)
+def repo_page():
+    """Get-the-app landing: Android APK direct download, iOS via AltStore source."""
+    return HTMLResponse("""<!doctype html><html><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Get Beanshelf</title>
+<style>
+  body{margin:0;background:#17100B;color:#F0E4D2;font-family:-apple-system,system-ui,sans-serif;
+       display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center}
+  .card{padding:40px 28px;max-width:360px}
+  img.icon{width:96px;height:96px;border-radius:22px}
+  h1{font-family:Georgia,serif;margin:.4em 0 .1em}
+  .sub{color:#A38B72;margin:.6em 0 1.6em}
+  a.btn{display:block;background:#D9A468;color:#17100B;text-decoration:none;font-weight:600;
+        padding:14px;border-radius:12px;margin:10px 0}
+  .plat{color:#D9A468;letter-spacing:.12em;font-size:12px;text-transform:uppercase;margin-top:22px}
+  .hint{color:#A38B72;font-size:13px;line-height:1.5;margin-top:6px}
+  code{background:#251A11;padding:2px 6px;border-radius:6px;font-size:12px;word-break:break-all}
+</style></head><body><div class=card>
+  <img class=icon src="/repo/icon.png" alt="">
+  <h1>Beanshelf</h1>
+  <div class=sub>Coffee bags, shelved.</div>
+
+  <div class=plat>Android</div>
+  <a class=btn href="/repo/beanshelf-1.0.apk">Download the app</a>
+  <div class=hint>Open the file once it downloads and allow installs from your browser when asked.</div>
+
+  <div class=plat>iPhone</div>
+  <a class=btn href="altstore://source?url=https://beans.beanshelf.ca/repo/apps.json">Add to AltStore</a>
+  <a class=btn href="sidestore://source?url=https://beans.beanshelf.ca/repo/apps.json">Add to SideStore</a>
+  <div class=hint>Install AltStore or SideStore first (free), then tap a button above —
+  Beanshelf appears in the store and installs with your own Apple ID.
+  Source URL: <code>https://beans.beanshelf.ca/repo/apps.json</code></div>
+</div></body></html>""")
+
+
+@app.get("/repo/{name}")
+def repo_file(name: str):
+    if "/" in name or ".." in name or not name.replace(".", "").replace("-", "").isalnum():
+        raise HTTPException(400, "bad name")
+    f = REPO / name
+    if not f.exists():
+        raise HTTPException(404, "no such file")
+    media = {
+        "json": "application/json",
+        "png": "image/png",
+        "ipa": "application/octet-stream",
+        "apk": "application/vnd.android.package-archive",
+    }.get(f.suffix.lstrip("."), "application/octet-stream")
+    return FileResponse(f, media_type=media)
+
+
 @app.get("/ping")
 def ping():
     return {"beanshelf": 1}
