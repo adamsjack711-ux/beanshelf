@@ -12,6 +12,23 @@ python3 -m uvicorn main:app --host 0.0.0.0 --port 8787
 
 Phones on the same Tailscale tailnet reach it at `http://100.75.23.96:8787`.
 
+### Auto-start on login (launchd)
+
+The server runs as a LaunchAgent so it survives reboots and restarts on crash:
+`~/Library/LaunchAgents/dev.adamsjack.beanshelf-server.plist` (RunAtLoad +
+KeepAlive, port 8787). Manage it with:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/dev.adamsjack.beanshelf-server.plist   # stop
+launchctl load   ~/Library/LaunchAgents/dev.adamsjack.beanshelf-server.plist   # start
+launchctl list | grep beanshelf                                                # status
+```
+
+The **quick tunnel is NOT auto-started** on purpose: its URL changes every
+restart, so KeepAlive would hand out a new address the app doesn't know. Once
+you have a named tunnel (below), `cloudflared service install` gives it the same
+always-on treatment with a stable URL.
+
 ## Public HTTPS (Cloudflare quick tunnel — no domain, no login)
 
 ```bash
