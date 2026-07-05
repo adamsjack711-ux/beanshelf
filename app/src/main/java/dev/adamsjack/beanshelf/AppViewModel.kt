@@ -15,15 +15,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** In-app navigation: three screens, no nav library. */
-sealed interface Screen {
-    data object Shelf : Screen
-    data object Leaderboard : Screen
-    data object Social : Screen
-    data object Settings : Screen
-    data class Detail(val beanId: String) : Screen
-    /** beanId == null → new bag. Back returns to Detail when editing, Shelf when adding. */
-    data class Edit(val beanId: String?) : Screen
+/** The four persistent bottom-bar destinations. */
+enum class Tab { Feed, Shelf, Profile, Settings }
+
+/** Full-screen screens that cover the bottom bar (pushed over a tab). */
+sealed interface Overlay {
+    data object Leaderboard : Overlay
+    data class Detail(val beanId: String) : Overlay
+    /** beanId == null → new bag. Back returns to Detail when editing, else the tab. */
+    data class Edit(val beanId: String?) : Overlay
 }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -33,15 +33,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _beans = MutableStateFlow<List<Bean>>(emptyList())
     val beans = _beans.asStateFlow()
 
-    var nav by mutableStateOf<Screen>(Screen.Shelf)
+    var tab by mutableStateOf(Tab.Shelf)
+    var overlay by mutableStateOf<Overlay?>(null)
 
-    /** Set by a beanshelf://u/<username> deep link; consumed by the Social screen. */
+    /** Set by a beanshelf://u/<username> deep link; consumed by the Feed tab. */
     var pendingProfile by mutableStateOf<String?>(null)
 
     fun openProfile(username: String) {
         pendingProfile = username
-        nav = Screen.Social
+        overlay = null
+        tab = Tab.Feed
     }
+
+    fun openDetail(id: String) { overlay = Overlay.Detail(id) }
+    fun openEdit(id: String?) { overlay = Overlay.Edit(id) }
+    fun openLeaderboard() { overlay = Overlay.Leaderboard }
+    fun closeOverlay() { overlay = null }
 
     init {
         viewModelScope.launch { _beans.value = store.load() }
@@ -99,10 +106,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun goBack() {
-        if (nav == Screen.Social) pendingProfile = null
-        nav = when (val s = nav) {
-            is Screen.Edit -> if (s.beanId != null) Screen.Detail(s.beanId) else Screen.Shelf
-            else -> Screen.Shelf
+        when (val o = overlay) {
+            is Overlay.Edit -> overlay = if (o.beanId != null) Overlay.Detail(o.beanId) else null
+            null -> { // on a tab root — fall back to the Shelf tab
+                pendingProfile = null
+                tab = Tab.Shelf
+            }
+            else -> overlay = null // Detail or Leaderboard → back to the tab
         }
     }
 

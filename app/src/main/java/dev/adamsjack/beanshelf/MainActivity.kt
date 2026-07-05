@@ -9,11 +9,16 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import dev.adamsjack.beanshelf.ui.AddEditScreen
 import dev.adamsjack.beanshelf.ui.BeanshelfTheme
+import dev.adamsjack.beanshelf.ui.BottomBar
 import dev.adamsjack.beanshelf.ui.DetailScreen
 import dev.adamsjack.beanshelf.ui.LeaderboardScreen
 import dev.adamsjack.beanshelf.ui.SettingsScreen
@@ -84,69 +89,72 @@ class MainActivity : ComponentActivity() {
 private fun App(vm: AppViewModel) {
     val beans by vm.beans.collectAsState()
 
-    BackHandler(enabled = vm.nav != Screen.Shelf) { vm.goBack() }
+    BackHandler(enabled = vm.overlay != null || vm.tab != Tab.Shelf) { vm.goBack() }
 
-    Crossfade(targetState = vm.nav, label = "nav") { screen ->
-        when (screen) {
-            is Screen.Shelf -> ShelfScreen(
-                beans = beans,
-                onAdd = { vm.nav = Screen.Edit(null) },
-                onOpen = { vm.nav = Screen.Detail(it.id) },
-                onLeaderboard = { vm.nav = Screen.Leaderboard },
-                onSocial = { vm.nav = Screen.Social },
-                onSettings = { vm.nav = Screen.Settings },
-                onImport = { vm.importBean(it) },
-            )
+    // A full-screen overlay (Detail / Edit / Leaderboard) covers the bottom bar.
+    val overlay = vm.overlay
+    if (overlay != null) {
+        Crossfade(targetState = overlay, label = "overlay") { o ->
+            when (o) {
+                is Overlay.Leaderboard -> LeaderboardScreen(
+                    beans = beans,
+                    onBack = { vm.closeOverlay() },
+                    onOpen = { vm.openDetail(it.id) },
+                )
 
-            is Screen.Social -> SocialScreen(
-                onBack = { vm.pendingProfile = null; vm.nav = Screen.Shelf },
-                initialProfile = vm.pendingProfile,
-            )
+                is Overlay.Detail -> {
+                    val bean = beans.firstOrNull { it.id == o.beanId }
+                    if (bean == null) {
+                        vm.closeOverlay()
+                    } else {
+                        DetailScreen(
+                            bean = bean,
+                            allBrews = beans.flatMap { it.brews }.sortedByDescending { it.timestamp },
+                            onBack = { vm.closeOverlay() },
+                            onEdit = { vm.openEdit(bean.id) },
+                            onDelete = { vm.deleteBean(bean.id); vm.closeOverlay() },
+                            onLogBrew = { vm.addBrew(bean.id, it) },
+                        )
+                    }
+                }
 
-            is Screen.Settings -> SettingsScreen(onBack = { vm.nav = Screen.Shelf })
+                is Overlay.Edit -> AddEditScreen(
+                    existing = o.beanId?.let { vm.bean(it) },
+                    onSave = { bean -> vm.upsertBean(bean); vm.openDetail(bean.id) },
+                    onBack = { vm.goBack() },
+                )
+            }
+        }
+        return
+    }
 
-            is Screen.Leaderboard -> LeaderboardScreen(
-                beans = beans,
-                onBack = { vm.nav = Screen.Shelf },
-                onOpen = { vm.nav = Screen.Detail(it.id) },
-            )
+    // Otherwise: the four tabs with a persistent bottom bar.
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f)) {
+            Crossfade(targetState = vm.tab, label = "tab") { tab ->
+                when (tab) {
+                    Tab.Feed -> SocialScreen(
+                        onBack = { vm.pendingProfile = null; vm.tab = Tab.Shelf },
+                        initialProfile = vm.pendingProfile,
+                    )
 
-            is Screen.Detail -> {
-                val bean = beans.firstOrNull { it.id == screen.beanId }
-                if (bean == null) {
-                    // Deleted underneath us — fall back to the shelf.
-                    ShelfScreen(
+                    Tab.Shelf -> ShelfScreen(
                         beans = beans,
-                        onAdd = { vm.nav = Screen.Edit(null) },
-                        onOpen = { vm.nav = Screen.Detail(it.id) },
-                        onLeaderboard = { vm.nav = Screen.Leaderboard },
-                        onSocial = { vm.nav = Screen.Social },
-                        onSettings = { vm.nav = Screen.Settings },
+                        onAdd = { vm.openEdit(null) },
+                        onOpen = { vm.openDetail(it.id) },
+                        onLeaderboard = { vm.openLeaderboard() },
                         onImport = { vm.importBean(it) },
                     )
-                } else {
-                    DetailScreen(
-                        bean = bean,
-                        allBrews = beans.flatMap { it.brews }.sortedByDescending { it.timestamp },
-                        onBack = { vm.nav = Screen.Shelf },
-                        onEdit = { vm.nav = Screen.Edit(bean.id) },
-                        onDelete = {
-                            vm.deleteBean(bean.id)
-                            vm.nav = Screen.Shelf
-                        },
-                        onLogBrew = { vm.addBrew(bean.id, it) },
+
+                    Tab.Profile -> SocialScreen(
+                        onBack = { vm.tab = Tab.Shelf },
+                        startOnProfile = true,
                     )
+
+                    Tab.Settings -> SettingsScreen(onBack = { vm.tab = Tab.Shelf })
                 }
             }
-
-            is Screen.Edit -> AddEditScreen(
-                existing = screen.beanId?.let { vm.bean(it) },
-                onSave = { bean ->
-                    vm.upsertBean(bean)
-                    vm.nav = Screen.Detail(bean.id)
-                },
-                onBack = { vm.goBack() },
-            )
         }
+        BottomBar(current = vm.tab, onSelect = { vm.tab = it })
     }
 }

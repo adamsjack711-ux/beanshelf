@@ -86,7 +86,7 @@ private sealed interface View {
 }
 
 @Composable
-fun SocialScreen(onBack: () -> Unit, initialProfile: String? = null) {
+fun SocialScreen(onBack: () -> Unit, initialProfile: String? = null, startOnProfile: Boolean = false) {
     val context = LocalContext.current
     var account by remember { mutableStateOf(SocialClient.account(context)) }
     val acct = account
@@ -95,7 +95,8 @@ fun SocialScreen(onBack: () -> Unit, initialProfile: String? = null) {
     } else {
         SocialRoot(
             account = acct,
-            initialProfile = initialProfile,
+            // Profile tab opens straight to your own profile.
+            initialProfile = initialProfile ?: acct.username.takeIf { startOnProfile },
             onBack = onBack,
             onSignOut = { SocialClient.signOut(context); account = null },
         )
