@@ -14,7 +14,10 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
@@ -385,7 +388,12 @@ private fun LogBrewSheet(onDismiss: () -> Unit, onLog: (Brew) -> Unit) {
     var note by rememberSaveable { mutableStateOf("") }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Surface2) {
-        Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 36.dp)) {
+        Column(
+            Modifier
+                .imePadding() // keep the note field and button above the keyboard
+                .verticalScroll(rememberScrollState())
+                .padding(start = 24.dp, end = 24.dp, bottom = 36.dp),
+        ) {
             Text("Log a brew", style = MaterialTheme.typography.titleLarge, color = Parchment)
 
             Eyebrow("Method", Modifier.padding(top = 18.dp, bottom = 6.dp))

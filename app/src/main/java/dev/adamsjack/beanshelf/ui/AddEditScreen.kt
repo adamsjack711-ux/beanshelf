@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -194,6 +195,9 @@ fun AddEditScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // Edge-to-edge windows don't resize for the keyboard — without this
+                // the bottom fields hide behind the IME and can't be scrolled to.
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
         ) {
