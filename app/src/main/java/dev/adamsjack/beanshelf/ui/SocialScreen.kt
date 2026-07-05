@@ -65,7 +65,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val DEFAULT_SERVER = "http://100.75.23.96:8787"
+// Public HTTPS via Cloudflare quick tunnel (see server/tunnel.sh). Falls back to the
+// Tailscale address for tailnet-only use: http://100.75.23.96:8787
+private const val DEFAULT_SERVER = "https://requested-enquiries-collectibles-launches.trycloudflare.com"
 
 /**
  * The social side: account section (register/sign in), find & follow people,
