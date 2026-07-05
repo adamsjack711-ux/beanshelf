@@ -31,6 +31,8 @@ enum SocialClient {
         let cheers: Int
         let iCheered: Bool
         let commentCount: Int
+        let lastCommentUser: String?
+        let lastCommentText: String?
     }
 
     struct UserHit: Identifiable {
@@ -279,7 +281,9 @@ enum SocialClient {
                 createdAt: (o["createdAt"] as? NSNumber)?.int64Value ?? 0,
                 cheers: o["cheers"] as? Int ?? 0,
                 iCheered: o["iCheered"] as? Bool ?? false,
-                commentCount: o["commentCount"] as? Int ?? 0
+                commentCount: o["commentCount"] as? Int ?? 0,
+                lastCommentUser: o["lastCommentUser"] as? String,
+                lastCommentText: o["lastCommentText"] as? String
             )
         }
     }

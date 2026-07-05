@@ -314,8 +314,11 @@ struct PostCard: View {
                         .padding(.leading, 8)
                 }
             }
-            // cheers + comments action row
-            HStack(spacing: 24) {
+            // Like + comment action bar (with a hairline above it)
+            Palette.dim.opacity(0.15)
+                .frame(height: 1)
+                .padding(.top, 10)
+            HStack(spacing: 18) {
                 Button {
                     cheered.toggle()
                     cheerCount += cheered ? 1 : -1
@@ -331,29 +334,63 @@ struct PostCard: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: cheered ? "heart.fill" : "heart")
-                            .font(.system(size: 15))
-                        Text(cheerCount > 0 ? "\(cheerCount)" : "Cheers")
-                            .font(Type.bodySmall)
+                            .font(.system(size: 17))
+                        Text(cheerCount > 0 ? "\(cheerCount)" : "Like")
+                            .font(Type.labelLarge)
                     }
                     .foregroundStyle(cheered ? Palette.crema : Palette.dim)
+                    .padding(4)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Like")
                 Button {
                     onOpenComments(post)
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "bubble.right")
-                            .font(.system(size: 14))
+                            .font(.system(size: 16))
                         Text(post.commentCount > 0 ? "\(post.commentCount)" : "Comment")
-                            .font(Type.bodySmall)
+                            .font(Type.labelLarge)
                     }
                     .foregroundStyle(Palette.dim)
+                    .padding(4)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Comment")
                 Spacer()
             }
             .padding(.top, 8)
-            .padding(.leading, 70)
+
+            // Inline comment preview / prompt — commenting is always one tap from the feed.
+            if post.commentCount > 1 {
+                Button("View all \(post.commentCount) comments") { onOpenComments(post) }
+                    .font(Type.bodySmall)
+                    .foregroundStyle(Palette.dim)
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+            }
+            if let lu = post.lastCommentUser, let lt = post.lastCommentText {
+                Button {
+                    onOpenComments(post)
+                } label: {
+                    (Text("@\(lu)")
+                        .font(Type.bodySmall)
+                        .foregroundStyle(Palette.crema)
+                    + Text("  \(lt)")
+                        .font(Type.bodySmall)
+                        .foregroundStyle(Palette.parchment.opacity(0.85)))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            } else {
+                Button("Add a comment…") { onOpenComments(post) }
+                    .font(Type.bodySmall)
+                    .foregroundStyle(Palette.dim)
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+            }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 10)
