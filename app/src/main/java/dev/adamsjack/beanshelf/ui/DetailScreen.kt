@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import dev.adamsjack.beanshelf.data.BeanPack
 import dev.adamsjack.beanshelf.data.ShareCard
+import dev.adamsjack.beanshelf.data.SocialClient
 import kotlinx.coroutines.launch
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -217,6 +218,22 @@ private fun ShareButton(bean: Bean) {
     Box {
         ScrimIconButton(Icons.Default.Share, "Share bean") { menu = true }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = SurfaceHigh) {
+            DropdownMenuItem(
+                text = { Text("Post to feed", color = Parchment) },
+                onClick = {
+                    menu = false
+                    val account = SocialClient.account(context)
+                    if (account == null) {
+                        android.widget.Toast.makeText(context, "Sign in first — people icon on the shelf", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        scope.launch {
+                            runCatching { SocialClient.postBean(account, bean) }
+                                .onSuccess { android.widget.Toast.makeText(context, "Posted to your feed", android.widget.Toast.LENGTH_SHORT).show() }
+                                .onFailure { android.widget.Toast.makeText(context, it.message ?: "Couldn't reach the server", android.widget.Toast.LENGTH_SHORT).show() }
+                        }
+                    }
+                },
+            )
             DropdownMenuItem(
                 text = { Text("Post a card (image)", color = Parchment) },
                 onClick = {

@@ -22,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.MoveToInbox
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Button
@@ -59,6 +60,7 @@ fun ShelfScreen(
     onAdd: () -> Unit,
     onOpen: (Bean) -> Unit,
     onLeaderboard: () -> Unit,
+    onSocial: () -> Unit,
     onImport: (android.net.Uri) -> Unit,
 ) {
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -87,7 +89,7 @@ fun ShelfScreen(
                     bottom = padding.calculateBottomPadding() + 96.dp,
                 ),
             ) {
-                item { ShelfHeader(beans, onLeaderboard, onImport = { importLauncher.launch("*/*") }) }
+                item { ShelfHeader(beans, onLeaderboard, onSocial, onImport = { importLauncher.launch("*/*") }) }
                 items(rows.size) { i -> ShelfRow(rows[i], onOpen) }
             }
         }
@@ -95,7 +97,7 @@ fun ShelfScreen(
 }
 
 @Composable
-private fun ShelfHeader(beans: List<Bean>, onLeaderboard: () -> Unit, onImport: () -> Unit) {
+private fun ShelfHeader(beans: List<Bean>, onLeaderboard: () -> Unit, onSocial: () -> Unit, onImport: () -> Unit) {
     Column(Modifier.padding(start = 24.dp, end = 16.dp, top = 28.dp, bottom = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -104,6 +106,9 @@ private fun ShelfHeader(beans: List<Bean>, onLeaderboard: () -> Unit, onImport: 
                 color = Parchment,
                 modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onSocial) {
+                Icon(Icons.Default.People, contentDescription = "Friends & feed", tint = Crema)
+            }
             IconButton(onClick = onImport) {
                 Icon(Icons.Default.MoveToInbox, contentDescription = "Import a bean from a friend", tint = Crema)
             }

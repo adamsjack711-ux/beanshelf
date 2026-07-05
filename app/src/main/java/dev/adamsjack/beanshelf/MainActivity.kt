@@ -17,6 +17,7 @@ import dev.adamsjack.beanshelf.ui.BeanshelfTheme
 import dev.adamsjack.beanshelf.ui.DetailScreen
 import dev.adamsjack.beanshelf.ui.LeaderboardScreen
 import dev.adamsjack.beanshelf.ui.ShelfScreen
+import dev.adamsjack.beanshelf.ui.SocialScreen
 
 class MainActivity : ComponentActivity() {
 
@@ -72,8 +73,11 @@ private fun App(vm: AppViewModel) {
                 onAdd = { vm.nav = Screen.Edit(null) },
                 onOpen = { vm.nav = Screen.Detail(it.id) },
                 onLeaderboard = { vm.nav = Screen.Leaderboard },
+                onSocial = { vm.nav = Screen.Social },
                 onImport = { vm.importBean(it) },
             )
+
+            is Screen.Social -> SocialScreen(onBack = { vm.nav = Screen.Shelf })
 
             is Screen.Leaderboard -> LeaderboardScreen(
                 beans = beans,
@@ -90,6 +94,7 @@ private fun App(vm: AppViewModel) {
                         onAdd = { vm.nav = Screen.Edit(null) },
                         onOpen = { vm.nav = Screen.Detail(it.id) },
                         onLeaderboard = { vm.nav = Screen.Leaderboard },
+                        onSocial = { vm.nav = Screen.Social },
                         onImport = { vm.importBean(it) },
                     )
                 } else {
