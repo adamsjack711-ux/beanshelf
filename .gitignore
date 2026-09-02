@@ -11,3 +11,12 @@ ios/build/
 ios/dist/
 server/repo/*.ipa
 server/repo/*.apk
+
+# server runtime state (contains real accounts — never commit)
+server/beanshelf.db
+server/beanshelf.db-*
+server/__pycache__/
+**/__pycache__/
+*.pyc
+server/repo/*.idsig
+graphify-out/
