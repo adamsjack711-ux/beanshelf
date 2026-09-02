@@ -12,6 +12,27 @@ Three codebases, one app:
 | `ios/` | **iOS** — SwiftUI, at feature parity with Android. Apple Vision for label OCR and bag auto-crop, fully on-device. |
 | `server/` | **Social backend** — FastAPI + SQLite. Accounts, follows, posts, feed, per-user leaderboards. |
 
+## Get the app
+
+### iPhone / iPad
+
+Beanshelf is distributed through [AltStore](https://altstore.io) / [SideStore](https://sidestore.io),
+so no paid Apple developer account is involved — your own free Apple ID re-signs the
+app on device.
+
+1. Install AltStore or SideStore on your device.
+2. Add this source: **`https://beans.beanshelf.ca/repo/apps.json`**
+3. Find **Beanshelf** in the source and tap **Install**.
+
+Or open [beans.beanshelf.ca/repo](https://beans.beanshelf.ca/repo) on the device and follow the link.
+
+Requires iOS 17 or newer. Free Apple ID installs need re-signing every 7 days — AltStore
+does that automatically while it can reach your Mac.
+
+### Android
+
+Building from source for now — see [Running it](#running-it) below.
+
 ## Features
 
 - **Real bag photos, not stock art.** Bags are auto-cropped from a photo and stood up on a shelf.
