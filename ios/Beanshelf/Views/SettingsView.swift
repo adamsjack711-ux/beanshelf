@@ -1,8 +1,12 @@
 import SwiftUI
 
-/// Appearance settings — pick a palette; applies live and persists.
+/// Appearance settings — pick a palette; applies live and persists. Also the
+/// home for feedback, since there's nowhere else it naturally belongs.
 struct SettingsView: View {
+    var beanCount: Int = 0
+
     @ObservedObject private var theme = ThemeHolder.shared
+    @State private var showReport = false
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
@@ -28,9 +32,39 @@ struct SettingsView: View {
                             }
                         }
                     }
+
+                    feedback
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 40)
+            }
+        }
+        .sheet(isPresented: $showReport) {
+            ReportBugView(beanCount: beanCount) { showReport = false }
+        }
+    }
+
+    private var feedback: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Feedback")
+                .font(Type.headlineMedium)
+                .foregroundStyle(Palette.parchment)
+                .padding(.top, 36)
+            Eyebrow(text: "Something broken?").padding(.top, 4)
+            Text("Found a bug, or want Beanshelf to do something it doesn't? Tell me and I'll fix it.")
+                .font(Type.bodyMedium)
+                .foregroundStyle(Palette.dim)
+                .padding(.bottom, 8)
+
+            Button {
+                showReport = true
+            } label: {
+                Text("Report a bug")
+                    .font(Type.labelLarge)
+                    .foregroundStyle(Palette.onAccent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Palette.crema))
             }
         }
     }

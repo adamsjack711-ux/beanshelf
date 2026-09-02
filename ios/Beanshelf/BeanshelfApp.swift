@@ -79,7 +79,7 @@ struct ContentView: View {
             )
 
         case .settings:
-            SettingsView()
+            SettingsView(beanCount: vm.beans.count)
         }
     }
 
