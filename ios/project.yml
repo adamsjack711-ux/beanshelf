@@ -14,6 +14,8 @@ targets:
       path: Beanshelf/Info.plist
       properties:
         CFBundleDisplayName: Beanshelf
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSCameraUsageDescription: Beanshelf photographs your coffee bags to put them on the shelf and read their labels.
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
@@ -23,8 +25,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.adamsjack.beanshelf
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "1.1"
+        CURRENT_PROJECT_VERSION: 2
         TARGETED_DEVICE_FAMILY: 1
         SWIFT_VERSION: "5.9"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

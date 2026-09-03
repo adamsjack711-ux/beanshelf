@@ -19,6 +19,15 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.1",
+          "buildVersion": "2",
+          "date": "2026-09-02",
+          "minOSVersion": "17.0",
+          "localizedDescription": "Report a bug from inside the app: Settings ▸ Feedback writes up what went wrong and files it straight to the project, with optional diagnostics you can read before they are attached.\n\nFixes: ratings no longer mix \"3.50\" with \"3.0\"; the leaderboard says \"1 brew\" instead of \"1 brews\"; and a bag added without a photo no longer has its name clipped by the rating stamp.",
+          "downloadURL": "https://beans.beanshelf.ca/repo/beanshelf-1.1.ipa",
+          "size": 1013032
+        },
+        {
           "version": "1.0",
           "buildVersion": "1",
           "date": "2026-07-05",
