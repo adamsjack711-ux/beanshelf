@@ -134,9 +134,14 @@ let roastLevels = ["Light", "Medium", "Medium-Dark", "Dark"]
 let processes = ["Washed", "Natural", "Honey", "Anaerobic", "Other"]
 let brewMethods = ["V60", "Espresso", "AeroPress", "French Press", "Moka", "Cold Brew", "Drip", "Other"]
 
-/// "4.0" / "4.25" — quarter-step display like Untappd.
+/// "4" / "3.5" / "4.25" — quarter-step display like Untappd. Trailing zeros are
+/// trimmed rather than padded to a fixed width, so a column of ratings doesn't
+/// mix "3.50" with "3.0".
 func formatRating(_ r: Double) -> String {
-    r.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.1f", r) : String(format: "%.2f", r)
+    let s = String(format: "%.2f", r)
+    if s.hasSuffix("00") { return String(s.dropLast(3)) }   // 3.00 -> 3
+    if s.hasSuffix("0") { return String(s.dropLast()) }     // 3.50 -> 3.5
+    return s
 }
 
 func nowMillis() -> Int64 {

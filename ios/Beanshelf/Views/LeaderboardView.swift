@@ -128,7 +128,7 @@ struct LeaderboardView: View {
                             .font(Type.titleMedium)
                             .foregroundStyle(Palette.parchment)
                             .lineLimit(1)
-                        let sub = [bean.roaster, bean.brews.isEmpty ? "" : "\(bean.brews.count) brews"]
+                        let sub = [bean.roaster, bean.brews.isEmpty ? "" : pluralBrews(bean.brews.count)]
                             .filter { !$0.isEmpty }
                             .joined(separator: "  ·  ")
                         if !sub.isEmpty {
@@ -161,7 +161,7 @@ struct LeaderboardView: View {
                     Text(standing.method)
                         .font(Type.titleMedium)
                         .foregroundStyle(Palette.parchment)
-                    Text(standing.brewCount == 1 ? "1 brew" : "\(standing.brewCount) brews")
+                    Text(pluralBrews(standing.brewCount))
                         .font(Type.bodySmall)
                         .foregroundStyle(Palette.dim)
                 }
@@ -174,4 +174,10 @@ struct LeaderboardView: View {
             .padding(.vertical, 10)
         }
     }
+}
+
+/// "1 brew" / "3 brews" — both leaderboard sections count the same thing, so
+/// they should say it the same way.
+private func pluralBrews(_ n: Int) -> String {
+    n == 1 ? "1 brew" : "\(n) brews"
 }

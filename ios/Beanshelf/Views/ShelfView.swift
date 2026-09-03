@@ -184,6 +184,10 @@ private struct BagCard: View {
                 .lineLimit(3)
         }
         .padding(10)
+        // A photo-less bag shows its name in the middle of the card, where the
+        // bottom-trailing roast stamp would otherwise clip the last few letters.
+        // Lift the text clear of the stamp's corner when there is one.
+        .padding(.bottom, bean.rating > 0 ? 34 : 0)
     }
 }
 
